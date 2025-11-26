@@ -1,2 +1,4 @@
 .env
 *.pt
+.DS_Store
+to_do.md
