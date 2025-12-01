@@ -1,35 +1,55 @@
 from torch.nn import functional as F
 import torch
 from tqdm import tqdm
+import numpy as np
 from src.constants import MAX_LENGTH
 
+# from https://github.com/WangKaizheng/CreINNs/blob/main/CreINNs_main_implementation/CreINNTestMulti.py
+def compute_intersection_probability(upper_probs, lower_probs):
+    alpha_num = 1.0 - np.sum(lower_probs, axis=-1, keepdims=True)
+    alpha_denom = np.sum(upper_probs-lower_probs, axis=-1, keepdims=True)
 
-def compute_credal_metrics(all_logits, top_k=100):
+    samples = alpha_num.shape[0]
+    alpha = alpha_num/alpha_denom
+
+    intersection_probs = (upper_probs - lower_probs) * alpha + 1.0 * lower_probs
+
+    return intersection_probs
+
+def compute_uncertainty_metrics(all_logits, top_k=100):
     """Compute multiple credal set metrics"""
+    # TODO: on the call was mentioned that softmax might not be ideal here
     all_probs = F.softmax(all_logits, dim=-1)  # [n_samples, 1, vocab_size]
 
-    # Full vocabulary credal set
-    lower_full = all_probs.min(dim=0).values.squeeze()
-    upper_full = all_probs.max(dim=0).values.squeeze()
-    widths_full = upper_full - lower_full
+    lower_probs = all_probs.min(dim=0).values.squeeze()
+    upper_probs = all_probs.max(dim=0).values.squeeze()
 
-    # Top-K credal set
+    # Entropy-based metrics (mean entropy, intersection entropy)
     mean_probs = all_probs.mean(dim=0).squeeze()
+    mean_probs_entropy = -(mean_probs * torch.log(mean_probs + 1e-10)).sum().item()
+
+    intersection_prob = compute_intersection_probability(upper_probs.cpu().numpy(), lower_probs.cpu().numpy())
+    intersection_prob_entropy = -(intersection_prob * np.log(intersection_prob + 1e-10)).sum().item()
+
+    # TODO: credal set might not be needed (or might be incorrectly defined)
     _, top_indices = torch.topk(mean_probs, k=top_k)
     top_probs = all_probs[:, 0, top_indices]
     lower_topk = top_probs.min(dim=0).values
     upper_topk = top_probs.max(dim=0).values
     widths_topk = upper_topk - lower_topk
+    widths_full = upper_probs - lower_probs
 
+    # TODO: might be the case that those metrics are not needed: credal_width_full, credal_width_topk, 
+    # credal_width_topk_mean, credal_width_topk_max
     return {
-        'credal_width_full': widths_full.sum().item(),
-        'credal_width_topk': widths_topk.sum().item(),
-        'credal_width_topk_mean': widths_topk.mean().item(),
-        'credal_width_topk_max': widths_topk.max().item(),
-        'top_k': top_k,
+        # 'credal_width_full': widths_full.sum().item(),
+        # 'credal_width_topk': widths_topk.sum().item(),
+        # 'credal_width_topk_mean': widths_topk.mean().item(),
+        # 'credal_width_topk_max': widths_topk.max().item(),
+        # 'top_k': top_k,
         'vocab_size': all_probs.shape[-1],
-        # Also useful: entropy-based metrics
-        'mean_entropy': -(mean_probs * torch.log(mean_probs + 1e-10)).sum().item(),
+        'mean_entropy': mean_probs_entropy,
+        "intersection_probs_entropy": intersection_prob_entropy
     }
 def compute_predictive_credal_sets(model, prompts, tokenizer, fisher_diag,
                                    n_samples=20, temperature=0.05, 
@@ -77,7 +97,7 @@ def compute_predictive_credal_sets(model, prompts, tokenizer, fisher_diag,
                 for name, param in lora_params.items():
                     param.data = original_state[name]
         
-        # Compute credal sets 
+        # Compute metrics 
         all_logits = torch.stack(logit_samples, dim=0)
         metrics = compute_credal_metrics(all_logits, top_k=top_k)
         results.append(metrics)

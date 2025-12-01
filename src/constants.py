@@ -35,3 +35,7 @@ LORA_DROPOUT = 0.1
 LR_THRESHOLD = 1e-2  # Threshold for low-rank approximation
 N_POSTERIOR_SAMPLES = 50  # Samples from predictive distribution
 MAX_LAPLACE_BATCHES=20
+
+# Directory to adapter checkpoints
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+FINE_TUNED_MODEL_DIR = os.path.join(BASE_DIR, "saved_models")
