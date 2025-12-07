@@ -21,10 +21,15 @@ import numpy as np
 from scipy import stats
 from datetime import datetime
 
+import os, sys
+this_dir = os.path.dirname(__file__)           # scripts/
+repo_root = os.path.abspath(os.path.join(this_dir, ".."))
+sys.path.insert(0, repo_root)
+
 import src.constants as constants
 from src.data_utils import load_training_and_test_data
 from src.training import setup_model_and_lora
-from src.uncertainty import compute_predictive_entropy
+from src.uncertainty import compute_uncertainty_metrics
 
 
 def load_fisher_matrix(fisher_path):
@@ -103,7 +108,7 @@ def main(args):
 
     # 5. Compute entropy for adversarial prompts
     print("\n[5/5] Computing predictive entropy for ADVERSARIAL prompts...")
-    adv_entropies = compute_predictive_entropy(
+    adv_entropies = compute_uncertainty_metrics(
         model=model,
         prompts=harmful_test,
         tokenizer=tokenizer,

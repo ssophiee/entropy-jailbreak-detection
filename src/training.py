@@ -24,7 +24,7 @@ def setup_model_and_lora(model_name, device, lora_rank=8):
     # Load base model
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        torch_dtype=torch.float16 if device == "cuda" else torch.float32,
+        torch_dtype=torch.float16 if device.type == "cuda" else torch.float32,
         device_map="auto" if device == "cuda" else None,
     )
 

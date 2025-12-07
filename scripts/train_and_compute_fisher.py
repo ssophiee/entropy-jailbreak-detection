@@ -13,16 +13,21 @@ This script:
 Usage:
     python train_and_compute_fisher.py
 """
-
-import os
+import os, sys
 import torch
 import argparse
 from datetime import datetime
+
+this_dir = os.path.dirname(__file__)        
+repo_root = os.path.abspath(os.path.join(this_dir, ".."))
+sys.path.insert(0, repo_root)
+
 
 import src.constants as constants
 from src.data_utils import load_training_and_test_data, create_dataloader
 from src.training import setup_model_and_lora, train_lora
 from src.laplace import collect_laplace_data, compute_diagonal_fisher
+
 
 
 def main(args):

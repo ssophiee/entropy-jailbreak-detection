@@ -18,7 +18,7 @@ MODEL_NAME = "Qwen/Qwen2.5-3B-Instruct"
 # Data parameters
 N_SAFE_TRAIN = 100
 N_BENIGN_TRAIN = 100
-N_TEST_PER_CATEGORY = 20
+N_TEST_PER_CATEGORY = 50
 
 # Training parameters
 BATCH_SIZE = 2

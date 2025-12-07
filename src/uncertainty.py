@@ -4,17 +4,63 @@ from tqdm import tqdm
 import numpy as np
 from src.constants import MAX_LENGTH
 
-# from https://github.com/WangKaizheng/CreINNs/blob/main/CreINNs_main_implementation/CreINNTestMulti.py
+# # from https://github.com/WangKaizheng/CreINNs/blob/main/CreINNs_main_implementation/CreINNTestMulti.py
+# def compute_intersection_probability(upper_probs, lower_probs):
+#     alpha_num = 1.0 - np.sum(lower_probs, axis=-1, keepdims=True)
+#     alpha_denom = np.sum(upper_probs-lower_probs, axis=-1, keepdims=True)
+
+#     samples = alpha_num.shape[0]
+#     alpha = alpha_num/alpha_denom
+
+#     intersection_probs = (upper_probs - lower_probs) * alpha + 1.0 * lower_probs
+
+#     return intersection_probs
+
 def compute_intersection_probability(upper_probs, lower_probs):
-    alpha_num = 1.0 - np.sum(lower_probs, axis=-1, keepdims=True)
-    alpha_denom = np.sum(upper_probs-lower_probs, axis=-1, keepdims=True)
-
-    samples = alpha_num.shape[0]
-    alpha = alpha_num/alpha_denom
-
-    intersection_probs = (upper_probs - lower_probs) * alpha + 1.0 * lower_probs
-
+    alpha_num = 1.0 - np.sum(lower_probs)
+    alpha_denom = np.sum(upper_probs - lower_probs)
+    
+    alpha = alpha_num / alpha_denom
+    
+    intersection_probs = (upper_probs - lower_probs) * alpha + lower_probs
+    
     return intersection_probs
+
+# def compute_intersection_probability(upper_probs, lower_probs):
+#     """Compute intersection probability with numerical stability fixes"""
+    
+#     # Ensure inputs are numpy arrays
+#     if not isinstance(upper_probs, np.ndarray):
+#         upper_probs = upper_probs.cpu().numpy() if hasattr(upper_probs, 'cpu') else np.array(upper_probs)
+#     if not isinstance(lower_probs, np.ndarray):
+#         lower_probs = lower_probs.cpu().numpy() if hasattr(lower_probs, 'cpu') else np.array(lower_probs)
+    
+#     # Normalize to ensure they sum to 1
+#     upper_probs = upper_probs / (np.sum(upper_probs) + 1e-10)
+#     lower_probs = lower_probs / (np.sum(lower_probs) + 1e-10)
+    
+#     alpha_num = 1.0 - np.sum(lower_probs)
+#     alpha_denom = np.sum(upper_probs - lower_probs)
+    
+#     # Handle edge cases
+#     if alpha_denom < 1e-10:  # Credal set collapsed (no uncertainty)
+#         return lower_probs
+    
+#     if alpha_num < 0:  # Numerical error
+#         return lower_probs
+    
+#     # Compute alpha with clipping to valid range [0, large value]
+#     alpha = np.clip(alpha_num / alpha_denom, 0, 1e6)
+    
+#     # Compute intersection
+#     intersection_probs = (upper_probs - lower_probs) * alpha + lower_probs
+    
+#     # Final normalization and clipping
+#     intersection_probs = np.clip(intersection_probs, 0, 1)
+#     intersection_probs = intersection_probs / (np.sum(intersection_probs) + 1e-10)
+    
+#     return intersection_probs
+
 
 def compute_uncertainty_metrics(all_logits, top_k=100):
     """Compute multiple credal set metrics"""

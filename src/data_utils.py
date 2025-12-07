@@ -28,7 +28,7 @@ def load_benign_prompts(n_samples=100, split="train"):
 
 def load_harmful_prompts(n_samples=100, split='train'):
     """Load adversarial/harmful prompts"""
-    dataset = load_dataset("walledai/AdvBench", split=split)
+    dataset = load_dataset("walledai/AdvBench", split=split, token=True)
     prompts = [item['prompt'] for item in dataset][:n_samples]
     return prompts
 
@@ -60,7 +60,7 @@ def load_training_and_test_data(
 
     # Test data
     safe_test = load_safe_prompts(n_test_per_category, split="test_sft")[:n_test_per_category]
-    harmful_test = load_harmful_prompts(n_test_per_category, split="eval")[:n_test_per_category]
+    harmful_test = load_harmful_prompts(n_test_per_category, split="train")[:n_test_per_category]
 
     print(f"Training samples: {len(train_prompts)}")
     print(f"Safe test samples: {len(safe_test)}")
