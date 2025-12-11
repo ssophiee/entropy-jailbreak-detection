@@ -1,273 +1,280 @@
-from torch.nn import functional as F
+#!/usr/bin/env python3
+"""
+Script for computing predictive entropy on safe and adversarial test prompts.
+
+This script:
+1. Loads the fine-tuned LoRA model and Fisher information matrix
+2. Loads test data (safe and harmful prompts)
+3. Computes predictive entropy for both categories
+4. Performs statistical analysis (t-test)
+5. Saves results to a JSON file
+
+Usage:
+    python compute_entropy.py --model_path saved_models/your_model_name
+"""
+
+
+import os, sys
+this_dir = os.path.dirname(__file__)           # scripts/
+repo_root = os.path.abspath(os.path.join(this_dir, ".."))
+sys.path.insert(0, repo_root)
+
+
+import os
+import json
 import torch
-from tqdm import tqdm
+import argparse
 import numpy as np
-from src.constants import MAX_LENGTH
+from scipy import stats
+from datetime import datetime
 
-# # from https://github.com/WangKaizheng/CreINNs/blob/main/CreINNs_main_implementation/CreINNTestMulti.py
-# def compute_intersection_probability(upper_probs, lower_probs):
-#     alpha_num = 1.0 - np.sum(lower_probs, axis=-1, keepdims=True)
-#     alpha_denom = np.sum(upper_probs-lower_probs, axis=-1, keepdims=True)
-
-#     samples = alpha_num.shape[0]
-#     alpha = alpha_num/alpha_denom
-
-#     intersection_probs = (upper_probs - lower_probs) * alpha + 1.0 * lower_probs
-
-#     return intersection_probs
-
-def compute_intersection_probability(upper_probs, lower_probs):
-    alpha_num = 1.0 - np.sum(lower_probs)
-    alpha_denom = np.sum(upper_probs - lower_probs)
-    
-    alpha = alpha_num / alpha_denom
-    
-    intersection_probs = (upper_probs - lower_probs) * alpha + lower_probs
-    
-    return intersection_probs
-
-# def compute_intersection_probability(upper_probs, lower_probs):
-#     """Compute intersection probability with numerical stability fixes"""
-    
-#     # Ensure inputs are numpy arrays
-#     if not isinstance(upper_probs, np.ndarray):
-#         upper_probs = upper_probs.cpu().numpy() if hasattr(upper_probs, 'cpu') else np.array(upper_probs)
-#     if not isinstance(lower_probs, np.ndarray):
-#         lower_probs = lower_probs.cpu().numpy() if hasattr(lower_probs, 'cpu') else np.array(lower_probs)
-    
-#     # Normalize to ensure they sum to 1
-#     upper_probs = upper_probs / (np.sum(upper_probs) + 1e-10)
-#     lower_probs = lower_probs / (np.sum(lower_probs) + 1e-10)
-    
-#     alpha_num = 1.0 - np.sum(lower_probs)
-#     alpha_denom = np.sum(upper_probs - lower_probs)
-    
-#     # Handle edge cases
-#     if alpha_denom < 1e-10:  # Credal set collapsed (no uncertainty)
-#         return lower_probs
-    
-#     if alpha_num < 0:  # Numerical error
-#         return lower_probs
-    
-#     # Compute alpha with clipping to valid range [0, large value]
-#     alpha = np.clip(alpha_num / alpha_denom, 0, 1e6)
-    
-#     # Compute intersection
-#     intersection_probs = (upper_probs - lower_probs) * alpha + lower_probs
-    
-#     # Final normalization and clipping
-#     intersection_probs = np.clip(intersection_probs, 0, 1)
-#     intersection_probs = intersection_probs / (np.sum(intersection_probs) + 1e-10)
-    
-#     return intersection_probs
+import src.constants as constants
+from src.data_utils import load_training_and_test_data
+from src.uncertainty import compute_predictive_entropy, compute_predictive_credal_sets
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import PeftModel
 
 
-# def compute_uncertainty_metrics(all_logits, top_k=100):
-#     """Compute multiple credal set metrics"""
-#     # TODO: on the call was mentioned that softmax might not be ideal here
-#     all_probs = F.softmax(all_logits, dim=-1)  # [n_samples, 1, vocab_size]
-
-#     lower_probs = all_probs.min(dim=0).values.squeeze()
-#     upper_probs = all_probs.max(dim=0).values.squeeze()
-
-#     # Entropy-based metrics (mean entropy, intersection entropy)
-#     mean_probs = all_probs.mean(dim=0).squeeze()
-#     mean_probs_entropy = -(mean_probs * torch.log(mean_probs + 1e-10)).sum().item()
-
-#     intersection_prob = compute_intersection_probability(upper_probs.cpu().numpy(), lower_probs.cpu().numpy())
-#     intersection_prob_entropy = -(intersection_prob * np.log(intersection_prob + 1e-10)).sum().item()
-
-#     # TODO: credal set might not be needed (or might be incorrectly defined)
-#     _, top_indices = torch.topk(mean_probs, k=top_k)
-#     top_probs = all_probs[:, 0, top_indices]
-#     lower_topk = top_probs.min(dim=0).values
-#     upper_topk = top_probs.max(dim=0).values
-#     widths_topk = upper_topk - lower_topk
-#     widths_full = upper_probs - lower_probs
-
-#     # TODO: might be the case that those metrics are not needed: credal_width_full, credal_width_topk, 
-#     # credal_width_topk_mean, credal_width_topk_max
-#     return {
-#         # 'credal_width_full': widths_full.sum().item(),
-#         # 'credal_width_topk': widths_topk.sum().item(),
-#         # 'credal_width_topk_mean': widths_topk.mean().item(),
-#         # 'credal_width_topk_max': widths_topk.max().item(),
-#         # 'top_k': top_k,
-#         'vocab_size': all_probs.shape[-1],
-#         'mean_entropy': mean_probs_entropy,
-#         "intersection_probs_entropy": intersection_prob_entropy
-#     }
+def load_fisher_matrix(fisher_path):
+    """Load Fisher diagonal matrix from saved checkpoint"""
+    print(f"Loading Fisher matrix from: {fisher_path}")
+    checkpoint = torch.load(fisher_path, map_location=constants.DEVICE)
+    fisher_diag = checkpoint['fisher_diag']
+    print(f"✓ Loaded Fisher matrix with {len(fisher_diag)} parameters")
+    return fisher_diag
 
 
-def compute_uncertainty_metrics(all_logits, top_k=200):
-    """Compute multiple credal set metrics with numerical stability"""
-    
-    # Use log-softmax for stability
-    log_probs = F.log_softmax(all_logits, dim=-1)
-    all_probs = torch.exp(log_probs)
-    
-    # Work with top-k only to avoid numerical issues with 151K vocab
-    mean_probs = all_probs.mean(dim=0).squeeze()
-    _, top_indices = torch.topk(mean_probs, k=min(top_k, mean_probs.size(-1)))
-    all_probs_topk = all_probs[:, 0, top_indices]  # [n_samples, top_k]
-    
-    # Compute bounds
-    lower_probs = all_probs_topk.min(dim=0).values
-    upper_probs = all_probs_topk.max(dim=0).values
-    
-    # Normalize bounds (they might not sum to 1 after taking min/max)
-    lower_probs = lower_probs / (lower_probs.sum() + 1e-10)
-    upper_probs = upper_probs / (upper_probs.sum() + 1e-10)
-    
-    # Mean entropy
-    mean_probs_topk = all_probs_topk.mean(dim=0)
-    mean_probs_topk = mean_probs_topk / (mean_probs_topk.sum() + 1e-10)
-    mean_probs_entropy = -(mean_probs_topk * torch.log(mean_probs_topk + 1e-10)).sum().item()
-    
-    # Intersection entropy - convert to numpy and add safety checks
-    upper_np = upper_probs.cpu().numpy()
-    lower_np = lower_probs.cpu().numpy()
-    
-    # Compute intersection probability safely
-    alpha_num = 1.0 - np.sum(lower_np)
-    alpha_denom = np.sum(upper_np - lower_np)
-    
-    if alpha_denom < 1e-10 or alpha_num < 0:
-        # Credal set collapsed or numerical error
-        intersection_prob = lower_np
+def main(args):
+    print("="*80)
+    print("PREDICTIVE ENTROPY COMPUTATION SCRIPT")
+    print("="*80)
+    print(f"Device: {constants.DEVICE}")
+    print(f"Model path: {args.model_path}")
+    print(f"N posterior samples: {constants.N_POSTERIOR_SAMPLES}")
+    print(f"Temperature: {args.temperature}")
+    print(f"Uncertainty metric: {args.metric}")
+    print("="*80)
+
+    # 1. Load test data
+    print("\n[1/5] Loading test data...")
+    data = load_training_and_test_data(
+        n_safe_train=constants.N_SAFE_TRAIN,
+        n_benign_train=constants.N_BENIGN_TRAIN,
+        n_test_per_category=constants.N_TEST_PER_CATEGORY
+    )
+    safe_test = data['safe_test']
+    harmful_test = data['harmful_test']
+    print(f"Loaded {len(safe_test)} safe test prompts")
+    print(f"Loaded {len(harmful_test)} harmful test prompts")
+
+    # 2. Load fine-tuned model
+    print("\n[2/5] Loading fine-tuned LoRA model...")
+    # Just load the base model WITHOUT LoRA initially
+    tokenizer = AutoTokenizer.from_pretrained(constants.MODEL_NAME)
+    base_model = AutoModelForCausalLM.from_pretrained(
+        constants.MODEL_NAME,
+        torch_dtype=torch.float32,
+        device_map=constants.DEVICE
+    )
+
+    # Load the fine-tuned adapter weights (this adds LoRA on top of base model)
+    model = PeftModel.from_pretrained(base_model, args.model_path)
+    model.to(constants.DEVICE)
+
+    # CRITICAL: Enable gradients for LoRA parameters (they're frozen by default)
+    for name, param in model.named_parameters():
+        if 'lora' in name.lower():
+            param.requires_grad = True
+
+    model.eval()
+
+    # Convert to float32 for stability during entropy computation
+    model = model.float()
+
+    # Verify LoRA params are trainable
+    lora_params = [n for n, p in model.named_parameters() if 'lora' in n.lower() and p.requires_grad]
+    print(f"✓ Model loaded with {len(lora_params)} trainable LoRA parameters")
+
+    # 3. Load Fisher matrix
+    print("\n[3/5] Loading Fisher information matrix...")
+    fisher_path = os.path.join(args.model_path, "fisher_diag.pt")
+    fisher_diag = load_fisher_matrix(fisher_path)
+
+    # Clear CUDA cache
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    # 4. Compute entropy for safe prompts
+    print(f"\n[4/5] Computing predictive entropy for SAFE prompts (metric: {args.metric})...")
+    safe_entropies = compute_predictive_entropy(
+        model=model,
+        prompts=safe_test,
+        tokenizer=tokenizer,
+        fisher_diag=fisher_diag,
+        n_samples=constants.N_POSTERIOR_SAMPLES,
+        temperature=args.temperature,
+        device=constants.DEVICE,
+        metric=args.metric
+    )
+
+    # Clear cache between computations
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    # 5. Compute entropy for adversarial prompts
+    print(f"\n[5/5] Computing predictive entropy for ADVERSARIAL prompts (metric: {args.metric})...")
+    adv_entropies = compute_predictive_entropy(
+        model=model,
+        prompts=harmful_test,
+        tokenizer=tokenizer,
+        fisher_diag=fisher_diag,
+        n_samples=constants.N_POSTERIOR_SAMPLES,
+        temperature=args.temperature,
+        device=constants.DEVICE,
+        metric=args.metric
+    )
+
+    # Statistical analysis
+    print("\n" + "="*80)
+    print("RESULTS")
+    print("="*80)
+
+    safe_mean = np.mean(safe_entropies)
+    safe_std = np.std(safe_entropies)
+    adv_mean = np.mean(adv_entropies)
+    adv_std = np.std(adv_entropies)
+
+    print(f"\nSafe Prompts:")
+    print(f"  Mean entropy: {safe_mean:.4f} ± {safe_std:.4f}")
+    print(f"  Min: {np.min(safe_entropies):.4f}, Max: {np.max(safe_entropies):.4f}")
+
+    print(f"\nAdversarial Prompts:")
+    print(f"  Mean entropy: {adv_mean:.4f} ± {adv_std:.4f}")
+    print(f"  Min: {np.min(adv_entropies):.4f}, Max: {np.max(adv_entropies):.4f}")
+
+    # T-test
+    t_stat, p_value = stats.ttest_ind(adv_entropies, safe_entropies)
+    print(f"\nStatistical Test (Independent t-test):")
+    print(f"  t-statistic: {t_stat:.4f}")
+    print(f"  p-value: {p_value:.4e}")
+
+    if p_value < 0.05:
+        print(f"  ✓ Significant difference (p < 0.05)")
+        if adv_mean > safe_mean:
+            print(f"  → Adversarial prompts have HIGHER entropy (supports hypothesis)")
+        else:
+            print(f"  → Adversarial prompts have LOWER entropy (unexpected)")
     else:
-        alpha = np.clip(alpha_num / alpha_denom, 0, 1e6)
-        intersection_prob = (upper_np - lower_np) * alpha + lower_np
-        # Normalize
-        intersection_prob = np.clip(intersection_prob, 0, 1)
-        intersection_prob = intersection_prob / (np.sum(intersection_prob) + 1e-10)
-    
-    intersection_prob_entropy = -(intersection_prob * np.log(intersection_prob + 1e-10)).sum()
-    
-    return {
-        'vocab_size': top_k,
-        'mean_entropy': mean_probs_entropy,
-        'intersection_probs_entropy': float(intersection_prob_entropy)
+        print(f"  ✗ No significant difference (p ≥ 0.05)")
+
+    # Effect size (Cohen's d)
+    pooled_std = np.sqrt((safe_std**2 + adv_std**2) / 2)
+    cohens_d = (adv_mean - safe_mean) / pooled_std if pooled_std > 0 else 0
+    print(f"  Cohen's d: {cohens_d:.4f}")
+
+
+    print("\n[++] Computing predictive credal sets for SAFE prompts...")
+    safe_credal = compute_predictive_credal_sets(
+        model=model,
+        prompts=safe_test,
+        tokenizer=tokenizer,
+        fisher_diag=fisher_diag,
+        n_samples=constants.N_POSTERIOR_SAMPLES,
+        temperature=args.temperature,
+        device=constants.DEVICE
+    )
+
+    # Clear cache between computations
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    # 5. Compute entropy for adversarial prompts
+    print("\n[++] Computing predictive credal sets for ADVERSARIAL prompts...")
+    adv_credal = compute_predictive_credal_sets(
+        model=model,
+        prompts=harmful_test,
+        tokenizer=tokenizer,
+        fisher_diag=fisher_diag,
+        n_samples=constants.N_POSTERIOR_SAMPLES,
+        temperature=args.temperature,
+        device=constants.DEVICE
+    )
+
+
+
+    # Save results
+    results = {
+        'timestamp': datetime.now().isoformat(),
+        'model_path': args.model_path,
+        'n_posterior_samples': constants.N_POSTERIOR_SAMPLES,
+        'temperature': args.temperature,
+        'metric': args.metric,
+        'safe_prompts': {
+            'n_samples': len(safe_test),
+            'mean_entropy': float(safe_mean),
+            'std_entropy': float(safe_std),
+            'min_entropy': float(np.min(safe_entropies)),
+            'max_entropy': float(np.max(safe_entropies)),
+            'entropies': [float(x) for x in safe_entropies],
+            'credal_metrics': safe_credal
+        },
+        'adversarial_prompts': {
+            'n_samples': len(harmful_test),
+            'mean_entropy': float(adv_mean),
+            'std_entropy': float(adv_std),
+            'min_entropy': float(np.min(adv_entropies)),
+            'max_entropy': float(np.max(adv_entropies)),
+            'entropies': [float(x) for x in adv_entropies], 
+            "credal_metrics": adv_credal
+        },
+        'statistical_test': {
+            't_statistic': float(t_stat),
+            'p_value': float(p_value),
+            'cohens_d': float(cohens_d),
+            'significant': bool(p_value < 0.05)
+        }
     }
 
+    # Save to JSON
+    output_path = os.path.join(args.model_path, f"entropy_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
+    with open(output_path, 'w') as f:
+        json.dump(results, f, indent=2)
 
-def compute_predictive_credal_sets(model, prompts, tokenizer, fisher_diag,
-                                   n_samples=20, temperature=0.05, 
-                                   top_k=100, device="cuda"):
-    """
-    Compute credal sets using Laplace approximation.
-    
-    Args:
-        top_k: If None, use full vocabulary. If int, use top-K budgeting.
-    """
-    print(f"Computing credal sets for {len(prompts)} prompts...")
-    
-    model.eval()
-    results = []
-    
-    lora_params = {n: p for n, p in model.named_parameters()
-                   if 'lora' in n and p.requires_grad}
-    original_state = {n: p.data.clone() for n, p in lora_params.items()}
-    
-    for prompt in tqdm(prompts, desc="Computing credal sets"):
-        inputs = tokenizer(
-            prompt,
-            return_tensors="pt",
-            truncation=True,
-            max_length=MAX_LENGTH
-        ).to(device)
-        
-        logit_samples = []
-        
-        with torch.no_grad():
-            for _ in range(n_samples):
-                # Sample from posterior
-                for name, param in lora_params.items():
-                    if name in fisher_diag:
-                        precision = fisher_diag[name] + 1e-6
-                        std = torch.sqrt(temperature / precision)
-                        noise = torch.randn_like(param) * std
-                        param.data = original_state[name] + noise
-                
-                outputs = model(**inputs)
-                logits = outputs.logits[:, -1, :]
-                logit_samples.append(logits.cpu())
-                
-                # Restore
-                for name, param in lora_params.items():
-                    param.data = original_state[name]
-        
-        # Compute metrics 
-        all_logits = torch.stack(logit_samples, dim=0)
-        metrics = compute_uncertainty_metrics(all_logits, top_k=top_k)
-        results.append(metrics)
-        
-        # Cleanup
-        if len(results) % 10 == 0 and torch.cuda.is_available():
-            torch.cuda.empty_cache()
-    
-    return results
+    print("\n" + "="*80)
+    print(f"Results saved to: {output_path}")
+    print("="*80)
 
 
-def compute_predictive_entropy(model, prompts, tokenizer, fisher_diag,
-                               n_samples=20, temperature=0.05, device="cuda"):
-    """
-    Compute predictive entropy using Laplace approximation.
-    H[p(y|x,D)] = -∑ p(y|x,D) log p(y|x,D)
-    where p(y|x,D) ≈ ∫ p(y|x,θ) q(θ|D) dθ
-    """
-    print(f"Computing entropy for {len(prompts)} prompts...")
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Compute predictive entropy for safe and adversarial prompts")
+    parser.add_argument(
+        "--model_path",
+        type=str,
+        required=True,
+        help="Path to the fine-tuned model directory (must contain fisher_diag.pt)"
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=0.05,
+        help="Temperature parameter for posterior sampling (default: 0.05)"
+    )
+    parser.add_argument(
+        "--metric",
+        type=str,
+        default="mutual_information",
+        choices=["mutual_information", "predictive_variance", "mean_entropy"],
+        help="Uncertainty metric to compute (default: mutual_information)"
+    )
 
-    model.eval()
-    entropies = []
+    args = parser.parse_args()
 
-    # Get LoRA parameters
-    lora_params = {n: p for n, p in model.named_parameters()
-                   if 'lora' in n and p.requires_grad}
+    # Validate model path
+    if not os.path.exists(args.model_path):
+        raise ValueError(f"Model path does not exist: {args.model_path}")
 
-    # Save original parameters (MAP estimate)
-    original_state = {n: p.data.clone() for n, p in lora_params.items()}
+    fisher_path = os.path.join(args.model_path, "fisher_diag.pt")
+    if not os.path.exists(fisher_path):
+        raise ValueError(f"Fisher matrix not found at: {fisher_path}")
 
-    for prompt in tqdm(prompts, desc="Computing entropy"):
-        # Tokenize prompt
-        inputs = tokenizer(
-            prompt,
-            return_tensors="pt",
-            truncation=True,
-            max_length=MAX_LENGTH
-        ).to(device)
-
-        logit_samples = []
-
-        with torch.no_grad():
-            for _ in range(n_samples):
-                # Sample from posterior: θ ~ N(θ_MAP, temperature / Fisher)
-                for name, param in lora_params.items():
-                    if name in fisher_diag:
-                        precision = fisher_diag[name] + 1e-6  # Add small constant for stability
-                        std = torch.sqrt(temperature / precision)
-                        noise = torch.randn_like(param) * std
-                        param.data = original_state[name] + noise
-
-
-                # Forward pass with sampled parameters
-                outputs = model(**inputs)
-                logits = outputs.logits[:, -1, :]  # Last token logits
-                logit_samples.append(logits.cpu())
-
-                # Restore original parameters
-                for name, param in lora_params.items():
-                    param.data = original_state[name]
-
-        # Compute predictive distribution: p(y|x,D) ≈ mean over samples
-        all_logits = torch.stack(logit_samples, dim=0)  # [n_samples, 1, vocab_size]
-        mean_probs = F.softmax(all_logits, dim=-1).mean(dim=0).squeeze()  # [vocab_size]
-        # Compute entropy: H = -∑ p log p
-        entropy = -(mean_probs * torch.log(mean_probs + 1e-10)).sum().item()
-        entropies.append(entropy)
-
-        # Periodic cleanup
-        if len(entropies) % 10 == 0 and torch.cuda.is_available():
-            torch.cuda.empty_cache()
-
-    return entropies
+    main(args)

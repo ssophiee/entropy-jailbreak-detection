@@ -2,62 +2,61 @@ from torch.nn import functional as F
 import torch
 from tqdm import tqdm
 import numpy as np
+
+import os, sys
+import torch
+import argparse
+from datetime import datetime
+
+this_dir = os.path.dirname(__file__)        
+repo_root = os.path.abspath(os.path.join(this_dir, ".."))
+sys.path.insert(0, repo_root)
+
+
 from src.constants import MAX_LENGTH
 
-# # from https://github.com/WangKaizheng/CreINNs/blob/main/CreINNs_main_implementation/CreINNTestMulti.py
-# def compute_intersection_probability(upper_probs, lower_probs):
-#     alpha_num = 1.0 - np.sum(lower_probs, axis=-1, keepdims=True)
-#     alpha_denom = np.sum(upper_probs-lower_probs, axis=-1, keepdims=True)
-
-#     samples = alpha_num.shape[0]
-#     alpha = alpha_num/alpha_denom
-
-#     intersection_probs = (upper_probs - lower_probs) * alpha + 1.0 * lower_probs
-
-#     return intersection_probs
-
+# from https://github.com/WangKaizheng/CreINNs/blob/main/CreINNs_main_implementation/CreINNTestMulti.py
 def compute_intersection_probability(upper_probs, lower_probs):
-    alpha_num = 1.0 - np.sum(lower_probs)
-    alpha_denom = np.sum(upper_probs - lower_probs)
-    
-    alpha = alpha_num / alpha_denom
-    
-    intersection_probs = (upper_probs - lower_probs) * alpha + lower_probs
-    
+    """
+    Compute intersection probability for credal sets.
+
+    For a single sample (1D arrays):
+    - alpha determines where intersection sits between lower and upper bounds
+    - alpha ≈ 0 means intersection is near lower bound (high certainty)
+    - alpha ≈ 1 means intersection is near upper bound (high uncertainty)
+    """
+    # Handle both batched (2D) and single (1D) cases
+    if upper_probs.ndim == 1:
+        # Single sample case
+        alpha_num = 1.0 - np.sum(lower_probs)
+        alpha_denom = np.sum(upper_probs - lower_probs)
+
+        # Avoid division by zero
+        if alpha_denom < 1e-10:
+            print(f"Warning: credal set collapsed (alpha_denom={alpha_denom:.2e}), using lower_probs")
+            return lower_probs
+
+        alpha = alpha_num / alpha_denom
+        print(f"Alpha: {alpha:.6f}, credal width: {alpha_denom:.6f}")
+        intersection_probs = (upper_probs - lower_probs) * alpha + lower_probs
+    else:
+        # Batched case (original CreINNs code)
+        alpha_num = 1.0 - np.sum(lower_probs, axis=-1, keepdims=True)
+        alpha_denom = np.sum(upper_probs - lower_probs, axis=-1, keepdims=True)
+        alpha = alpha_num / alpha_denom
+        print(f"Alpha: {alpha[0]:.6f}")
+        intersection_probs = (upper_probs - lower_probs) * alpha + lower_probs
+
     return intersection_probs
 
 # def compute_intersection_probability(upper_probs, lower_probs):
-#     """Compute intersection probability with numerical stability fixes"""
-    
-#     # Ensure inputs are numpy arrays
-#     if not isinstance(upper_probs, np.ndarray):
-#         upper_probs = upper_probs.cpu().numpy() if hasattr(upper_probs, 'cpu') else np.array(upper_probs)
-#     if not isinstance(lower_probs, np.ndarray):
-#         lower_probs = lower_probs.cpu().numpy() if hasattr(lower_probs, 'cpu') else np.array(lower_probs)
-    
-#     # Normalize to ensure they sum to 1
-#     upper_probs = upper_probs / (np.sum(upper_probs) + 1e-10)
-#     lower_probs = lower_probs / (np.sum(lower_probs) + 1e-10)
-    
 #     alpha_num = 1.0 - np.sum(lower_probs)
 #     alpha_denom = np.sum(upper_probs - lower_probs)
     
-#     # Handle edge cases
-#     if alpha_denom < 1e-10:  # Credal set collapsed (no uncertainty)
-#         return lower_probs
+#     alpha = alpha_num / alpha_denom
+#     print(alpha)
     
-#     if alpha_num < 0:  # Numerical error
-#         return lower_probs
-    
-#     # Compute alpha with clipping to valid range [0, large value]
-#     alpha = np.clip(alpha_num / alpha_denom, 0, 1e6)
-    
-#     # Compute intersection
 #     intersection_probs = (upper_probs - lower_probs) * alpha + lower_probs
-    
-#     # Final normalization and clipping
-#     intersection_probs = np.clip(intersection_probs, 0, 1)
-#     intersection_probs = intersection_probs / (np.sum(intersection_probs) + 1e-10)
     
 #     return intersection_probs
 
@@ -114,7 +113,7 @@ def compute_predictive_credal_sets(model, prompts, tokenizer, fisher_diag,
     lora_params = {n: p for n, p in model.named_parameters()
                    if 'lora' in n and p.requires_grad}
     original_state = {n: p.data.clone() for n, p in lora_params.items()}
-    
+
     for prompt in tqdm(prompts, desc="Computing credal sets"):
         inputs = tokenizer(
             prompt,
@@ -126,19 +125,21 @@ def compute_predictive_credal_sets(model, prompts, tokenizer, fisher_diag,
         logit_samples = []
         
         with torch.no_grad():
-            for _ in range(n_samples):
+            for sample_idx in range(n_samples):
                 # Sample from posterior
+                total_noise_norm = 0.0
                 for name, param in lora_params.items():
                     if name in fisher_diag:
                         precision = fisher_diag[name] + 1e-6
                         std = torch.sqrt(temperature / precision)
                         noise = torch.randn_like(param) * std
                         param.data = original_state[name] + noise
-                
+                        total_noise_norm += noise.norm().item()
+
                 outputs = model(**inputs)
                 logits = outputs.logits[:, -1, :]
                 logit_samples.append(logits.cpu())
-                
+
                 # Restore
                 for name, param in lora_params.items():
                     param.data = original_state[name]
@@ -156,16 +157,24 @@ def compute_predictive_credal_sets(model, prompts, tokenizer, fisher_diag,
 
 
 def compute_predictive_entropy(model, prompts, tokenizer, fisher_diag,
-                               n_samples=20, temperature=0.05, device="cuda"):
+                               n_samples=20, temperature=0.05, device="cuda",
+                               metric="mutual_information"):
     """
-    Compute predictive entropy using Laplace approximation.
-    H[p(y|x,D)] = -∑ p(y|x,D) log p(y|x,D)
-    where p(y|x,D) ≈ ∫ p(y|x,θ) q(θ|D) dθ
+    Compute epistemic uncertainty metrics using Laplace approximation.
+
+    Args:
+        metric: One of "mutual_information", "predictive_variance", "mean_entropy"
+            - mutual_information: I[y;θ|x] = H[E[p]] - E[H[p]] (RECOMMENDED for adversarial detection)
+            - predictive_variance: Variance of max probability across samples
+            - mean_entropy: H[E[p]] (original, less sensitive to epistemic uncertainty)
+
+    Returns:
+        List of uncertainty values (higher = more uncertain)
     """
-    print(f"Computing entropy for {len(prompts)} prompts...")
+    print(f"Computing {metric} for {len(prompts)} prompts...")
 
     model.eval()
-    entropies = []
+    uncertainties = []
 
     # Get LoRA parameters
     lora_params = {n: p for n, p in model.named_parameters()
@@ -174,7 +183,7 @@ def compute_predictive_entropy(model, prompts, tokenizer, fisher_diag,
     # Save original parameters (MAP estimate)
     original_state = {n: p.data.clone() for n, p in lora_params.items()}
 
-    for prompt in tqdm(prompts, desc="Computing entropy"):
+    for prompt in tqdm(prompts, desc=f"Computing {metric}"):
         # Tokenize prompt
         inputs = tokenizer(
             prompt,
@@ -195,7 +204,6 @@ def compute_predictive_entropy(model, prompts, tokenizer, fisher_diag,
                         noise = torch.randn_like(param) * std
                         param.data = original_state[name] + noise
 
-
                 # Forward pass with sampled parameters
                 outputs = model(**inputs)
                 logits = outputs.logits[:, -1, :]  # Last token logits
@@ -205,15 +213,41 @@ def compute_predictive_entropy(model, prompts, tokenizer, fisher_diag,
                 for name, param in lora_params.items():
                     param.data = original_state[name]
 
-        # Compute predictive distribution: p(y|x,D) ≈ mean over samples
+        # Compute uncertainty metric
         all_logits = torch.stack(logit_samples, dim=0)  # [n_samples, 1, vocab_size]
-        mean_probs = F.softmax(all_logits, dim=-1).mean(dim=0).squeeze()  # [vocab_size]
-        # Compute entropy: H = -∑ p log p
-        entropy = -(mean_probs * torch.log(mean_probs + 1e-10)).sum().item()
-        entropies.append(entropy)
+        all_probs = F.softmax(all_logits, dim=-1).squeeze(1)  # [n_samples, vocab_size]
+
+        if metric == "mutual_information":
+            # I[y;θ|x] = H[E[p(y|θ)]] - E[H[p(y|θ)]]
+            # This captures epistemic uncertainty - how much the model disagrees with itself
+
+            # H[E[p]]: Entropy of the mean distribution
+            mean_probs = all_probs.mean(dim=0)  # [vocab_size]
+            h_mean = -(mean_probs * torch.log(mean_probs + 1e-10)).sum()
+
+            # E[H[p]]: Expected entropy across samples
+            sample_entropies = -(all_probs * torch.log(all_probs + 1e-10)).sum(dim=1)  # [n_samples]
+            mean_h = sample_entropies.mean()
+
+            uncertainty = (h_mean - mean_h).item()
+
+        elif metric == "predictive_variance":
+            # Variance in the predicted probability of the most likely class
+            max_probs = all_probs.max(dim=1).values  # [n_samples]
+            uncertainty = max_probs.var().item()
+
+        elif metric == "mean_entropy":
+            # Original metric: entropy of the mean distribution
+            mean_probs = all_probs.mean(dim=0)
+            uncertainty = -(mean_probs * torch.log(mean_probs + 1e-10)).sum().item()
+
+        else:
+            raise ValueError(f"Unknown metric: {metric}")
+
+        uncertainties.append(uncertainty)
 
         # Periodic cleanup
-        if len(entropies) % 10 == 0 and torch.cuda.is_available():
+        if len(uncertainties) % 10 == 0 and torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-    return entropies
+    return uncertainties

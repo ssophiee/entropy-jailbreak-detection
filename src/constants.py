@@ -22,19 +22,19 @@ N_TEST_PER_CATEGORY = 50
 
 # Training parameters
 BATCH_SIZE = 2
-EPOCHS = 1
+EPOCHS = 3  # Increased from 1 to allow better learning
 MAX_LENGTH = 128
 LEARNING_RATE = 3e-4
 
 # LoRA parameters - CRITICAL FOR MEMORY
-LORA_RANK = 4  # Keep small for memory
-LORA_ALPHA = 8
+LORA_RANK = 16  # Increased from 4 to 16 for better capacity (was too small!)
+LORA_ALPHA = 32  # Scale with rank (typically 2x rank)
 LORA_DROPOUT = 0.1
 
 # Bayesian parameters
 LR_THRESHOLD = 1e-2  # Threshold for low-rank approximation
 N_POSTERIOR_SAMPLES = 50  # Samples from predictive distribution
-MAX_LAPLACE_BATCHES=20
+MAX_LAPLACE_BATCHES = 50  # Increased from 20 to use more data (100 prompts with batch_size=2)
 
 # Directory to adapter checkpoints
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
