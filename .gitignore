@@ -1,4 +1,5 @@
 .env
 *.pt
+!fisher_diag.pt
 .DS_Store
 to_do.md

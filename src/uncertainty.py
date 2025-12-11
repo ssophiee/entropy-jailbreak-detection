@@ -99,7 +99,7 @@ def compute_uncertainty_metrics(all_logits, top_k=100):
     }
 def compute_predictive_credal_sets(model, prompts, tokenizer, fisher_diag,
                                    n_samples=20, temperature=0.05, 
-                                   top_k=None, device="cuda"):
+                                   top_k=100, device="cuda"):
     """
     Compute credal sets using Laplace approximation.
     
@@ -145,7 +145,7 @@ def compute_predictive_credal_sets(model, prompts, tokenizer, fisher_diag,
         
         # Compute metrics 
         all_logits = torch.stack(logit_samples, dim=0)
-        metrics = compute_credal_metrics(all_logits, top_k=top_k)
+        metrics = compute_uncertainty_metrics(all_logits, top_k=top_k)
         results.append(metrics)
         
         # Cleanup
