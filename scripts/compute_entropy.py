@@ -114,7 +114,8 @@ def main(args):
         n_samples=constants.N_POSTERIOR_SAMPLES,
         temperature=args.temperature,
         device=constants.DEVICE,
-        metric=args.metric
+        metric=args.metric,
+        debug=args.debug
     )
 
     # Clear cache between computations
@@ -131,7 +132,8 @@ def main(args):
         n_samples=constants.N_POSTERIOR_SAMPLES,
         temperature=args.temperature,
         device=constants.DEVICE,
-        metric=args.metric
+        metric=args.metric,
+        debug=args.debug
     )
 
     # Statistical analysis
@@ -267,6 +269,13 @@ if __name__ == "__main__":
         help="Uncertainty metric to compute (default: mutual_information)"
     )
 
+    parser.add_argument(
+        "--debug",
+        type=bool,
+        default=False,
+        choices=[True, False],
+        help="Debug Noise During Inference"
+    )
     args = parser.parse_args()
 
     # Validate model path

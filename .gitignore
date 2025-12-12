@@ -3,3 +3,6 @@
 !fisher_diag.pt
 .DS_Store
 to_do.md
+*FIXES_APPLIED.md
+*FISHER_FIX_INSTRUCTIONS.md
+inspect_fisher.py

@@ -54,7 +54,7 @@ def main(args):
     train_prompts = data['train_prompts']
     print(f"Loaded {len(train_prompts)} training prompts")
 
-    # 2. Setup model and LoRA
+
     print("\n[2/6] Setting up model with LoRA...")
     model, tokenizer = setup_model_and_lora(
         constants.MODEL_NAME,
@@ -62,7 +62,6 @@ def main(args):
         lora_rank=constants.LORA_RANK
     )
 
-    # 3. Create DataLoader
     print("\n[3/6] Creating DataLoader...")
     train_loader = create_dataloader(
         train_prompts,
@@ -73,7 +72,6 @@ def main(args):
     )
     print(f"DataLoader created with {len(train_loader)} batches")
 
-    # 4. Train the model
     print("\n[4/6] Training LoRA model...")
     model = train_lora(
         model,
@@ -86,7 +84,7 @@ def main(args):
     )
     print("Training complete!")
 
-    # 5. Collect data for Laplace approximation
+
     print("\n[5/6] Collecting data for Laplace approximation...")
     laplace_data = collect_laplace_data(
         model,
@@ -94,11 +92,9 @@ def main(args):
         max_batches=constants.MAX_LAPLACE_BATCHES
     )
 
-    # Clear CUDA cache before Fisher computation
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    # 6. Compute diagonal Fisher matrix (Laplace approximation)
     print("\n[6/6] Computing diagonal Fisher information matrix...")
     fisher_diag, lora_params = compute_diagonal_fisher(
         model,

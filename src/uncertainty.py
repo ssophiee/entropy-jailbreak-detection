@@ -13,7 +13,7 @@ repo_root = os.path.abspath(os.path.join(this_dir, ".."))
 sys.path.insert(0, repo_root)
 
 
-from src.constants import MAX_LENGTH
+from src.constants import MAX_LENGTH, PRIOR_PRECISION
 
 # from https://github.com/WangKaizheng/CreINNs/blob/main/CreINNs_main_implementation/CreINNTestMulti.py
 def compute_intersection_probability(upper_probs, lower_probs):
@@ -25,19 +25,12 @@ def compute_intersection_probability(upper_probs, lower_probs):
     - alpha ≈ 0 means intersection is near lower bound (high certainty)
     - alpha ≈ 1 means intersection is near upper bound (high uncertainty)
     """
-    # Handle both batched (2D) and single (1D) cases
     if upper_probs.ndim == 1:
         # Single sample case
         alpha_num = 1.0 - np.sum(lower_probs)
         alpha_denom = np.sum(upper_probs - lower_probs)
 
-        # Avoid division by zero
-        if alpha_denom < 1e-10:
-            print(f"Warning: credal set collapsed (alpha_denom={alpha_denom:.2e}), using lower_probs")
-            return lower_probs
-
         alpha = alpha_num / alpha_denom
-        print(f"Alpha: {alpha:.6f}, credal width: {alpha_denom:.6f}")
         intersection_probs = (upper_probs - lower_probs) * alpha + lower_probs
     else:
         # Batched case (original CreINNs code)
@@ -48,17 +41,6 @@ def compute_intersection_probability(upper_probs, lower_probs):
         intersection_probs = (upper_probs - lower_probs) * alpha + lower_probs
 
     return intersection_probs
-
-# def compute_intersection_probability(upper_probs, lower_probs):
-#     alpha_num = 1.0 - np.sum(lower_probs)
-#     alpha_denom = np.sum(upper_probs - lower_probs)
-    
-#     alpha = alpha_num / alpha_denom
-#     print(alpha)
-    
-#     intersection_probs = (upper_probs - lower_probs) * alpha + lower_probs
-    
-#     return intersection_probs
 
 
 def compute_uncertainty_metrics(all_logits, top_k=100):
@@ -130,9 +112,22 @@ def compute_predictive_credal_sets(model, prompts, tokenizer, fisher_diag,
                 total_noise_norm = 0.0
                 for name, param in lora_params.items():
                     if name in fisher_diag:
-                        precision = fisher_diag[name] + 1e-6
+                        precision = fisher_diag[name] + PRIOR_PRECISION
                         std = torch.sqrt(temperature / precision)
                         noise = torch.randn_like(param) * std
+
+                        # Print meaningful statistics
+                        param_norm = original_state[name].norm().item()
+                        noise_norm = noise.norm().item()
+                        noise_to_param_ratio = noise_norm / (param_norm + 1e-10)
+                        
+                        print(f"\n{name}:")
+                        print(f"  Param norm: {param_norm:.6f}")
+                        print(f"  Noise norm: {noise_norm:.6f}")
+                        print(f"  Noise/Param ratio: {noise_to_param_ratio:.4f} ({noise_to_param_ratio*100:.2f}%)")
+                        print(f"  Param mean: {original_state[name].mean().item():.6f}, std: {original_state[name].std().item():.6f}")
+                        print(f"  Noise mean: {noise.mean().item():.6f}, std: {noise.std().item():.6f}")
+
                         param.data = original_state[name] + noise
                         total_noise_norm += noise.norm().item()
 
@@ -158,7 +153,7 @@ def compute_predictive_credal_sets(model, prompts, tokenizer, fisher_diag,
 
 def compute_predictive_entropy(model, prompts, tokenizer, fisher_diag,
                                n_samples=20, temperature=0.05, device="cuda",
-                               metric="mutual_information"):
+                               metric="mutual_information", debug=False):
     """
     Compute epistemic uncertainty metrics using Laplace approximation.
 
@@ -199,9 +194,23 @@ def compute_predictive_entropy(model, prompts, tokenizer, fisher_diag,
                 # Sample from posterior: θ ~ N(θ_MAP, temperature / Fisher)
                 for name, param in lora_params.items():
                     if name in fisher_diag:
-                        precision = fisher_diag[name] + 1e-6  # Add small constant for stability
+                        precision = fisher_diag[name] + PRIOR_PRECISION  # Add small constant for stability
                         std = torch.sqrt(temperature / precision)
                         noise = torch.randn_like(param) * std
+
+                        # Print meaningful statistics
+                        param_norm = original_state[name].norm().item()
+                        noise_norm = noise.norm().item()
+                        noise_to_param_ratio = noise_norm / (param_norm + 1e-10)
+
+                        if debug:
+                          print(f"\n{name}:")
+                          print(f"  Param norm: {param_norm:.6f}")
+                          print(f"  Noise norm: {noise_norm:.6f}")
+                          print(f"  Noise/Param ratio: {noise_to_param_ratio:.4f} ({noise_to_param_ratio*100:.2f}%)")
+                          print(f"  Param mean: {original_state[name].mean().item():.6f}, std: {original_state[name].std().item():.6f}")
+                          print(f"  Noise mean: {noise.mean().item():.6f}, std: {noise.std().item():.6f}")
+
                         param.data = original_state[name] + noise
 
                 # Forward pass with sampled parameters
