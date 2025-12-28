@@ -24,7 +24,7 @@ N_TEST_PER_CATEGORY = 50
 BATCH_SIZE = 2
 EPOCHS = 5  # Increased from 3 for better convergence
 MAX_LENGTH = 128
-LEARNING_RATE = 1e-2  # Increased from 3e-4 for better Fisher information
+LEARNING_RATE = 1e-2 # 1e-2  # Increased from 3e-4 for better Fisher information
 
 # LoRA parameters - CRITICAL FOR MEMORY
 LORA_RANK = 16  # Increased from 4 to 16 for better capacity (was too small!)
@@ -36,7 +36,7 @@ LR_THRESHOLD = 1e-2  # Threshold for low-rank approximation
 N_POSTERIOR_SAMPLES = 50  # Samples from predictive distribution
 MAX_LAPLACE_BATCHES = 100  # Increased from 50 to use all training data (200 prompts with batch_size=2)
 TEMPERATURE = 0.01  # Temperature for posterior sampling (use with sum-based Fisher)
-PRIOR_PRECISION = 1e-4  # Prior precision for Laplace approximation (regularization for low-Fisher parameters)
+PRIOR_PRECISION = 1 # 1e-4  # Prior precision for Laplace approximation (regularization for low-Fisher parameters)
 
 # Directory to adapter checkpoints
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))

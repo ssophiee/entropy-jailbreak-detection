@@ -6,6 +6,33 @@ import numpy as np
 from tqdm import tqdm
 
 
+# from https://github.com/WangKaizheng/CreINNs/blob/main/CreINNs_main_implementation/CreINNTestMulti.py
+def compute_intersection_probability(upper_probs, lower_probs):
+    """
+    Compute intersection probability for credal sets.
+
+    For a single sample (1D arrays):
+    - alpha determines where intersection sits between lower and upper bounds
+    - alpha ≈ 0 means intersection is near lower bound (high certainty)
+    - alpha ≈ 1 means intersection is near upper bound (high uncertainty)
+    """
+    if upper_probs.ndim == 1:
+        # Single sample case
+        alpha_num = 1.0 - np.sum(lower_probs)
+        alpha_denom = np.sum(upper_probs - lower_probs)
+
+        alpha = alpha_num / alpha_denom
+        intersection_probs = (upper_probs - lower_probs) * alpha + lower_probs
+    else:
+        # Batched case (original CreINNs code)
+        alpha_num = 1.0 - np.sum(lower_probs, axis=-1, keepdims=True)
+        alpha_denom = np.sum(upper_probs - lower_probs, axis=-1, keepdims=True)
+        alpha = alpha_num / alpha_denom
+        intersection_probs = (upper_probs - lower_probs) * alpha + lower_probs
+
+    return intersection_probs
+
+
 def predictive_entropy(probs: torch.Tensor, dim: int = 0) -> torch.Tensor:
     """
     Compute predictive entropy from ensemble predictions.
@@ -75,32 +102,6 @@ def variance_of_predictions(probs: torch.Tensor) -> torch.Tensor:
     return variance
 
 
-def ensemble_diversity(probs: torch.Tensor) -> torch.Tensor:
-    """
-    Measure ensemble diversity (disagreement rate).
-
-    Computes fraction of adapters that disagree on predicted class.
-
-    Args:
-        probs: [n_adapters, n_prompts, vocab_size]
-
-    Returns:
-        diversity: [n_prompts] fraction in [0, 1]
-    """
-    # Get predicted class for each adapter
-    predicted_classes = probs.argmax(dim=-1)  # [n_adapters, n_prompts]
-
-    # Count unique predictions per prompt
-    diversity_scores = []
-    for prompt_idx in range(predicted_classes.shape[1]):
-        predictions = predicted_classes[:, prompt_idx]
-        unique_preds = torch.unique(predictions)
-        diversity = 1.0 - (1.0 / len(unique_preds))  # 0 if all agree, high if diverse
-        diversity_scores.append(diversity)
-
-    return torch.tensor(diversity_scores)
-
-
 def expected_calibration_error(
     probs: torch.Tensor,
     labels: torch.Tensor,
@@ -155,12 +156,31 @@ def compute_uncertainty_metrics(
         "predictive_entropy": predictive_entropy(ensemble_probs),
         "mutual_information": mutual_information(ensemble_probs),
         "variance": variance_of_predictions(ensemble_probs),
-        "diversity": ensemble_diversity(ensemble_probs),
     }
 
     # Mean ensemble prediction
     mean_probs = ensemble_probs.mean(dim=0)
     metrics["mean_confidence"] = mean_probs.max(dim=-1)[0]
+
+    # Compute credal set metrics (intersection probability entropy)
+    # Get lower and upper bounds from ensemble
+    lower_probs = ensemble_probs.min(dim=0).values  # [n_prompts, vocab_size]
+    upper_probs = ensemble_probs.max(dim=0).values  # [n_prompts, vocab_size]
+
+    # Compute intersection probability entropy for each prompt
+    intersection_entropies = []
+    for i in range(lower_probs.shape[0]):
+        lower = lower_probs[i].cpu().numpy()
+        upper = upper_probs[i].cpu().numpy()
+        intersection_prob = compute_intersection_probability(upper, lower)
+        intersection_entropy = -(intersection_prob * np.log(intersection_prob + 1e-10)).sum()
+        intersection_entropies.append(intersection_entropy)
+
+    metrics["intersection_probs_entropy"] = torch.tensor(intersection_entropies)
+
+    # Also compute mean entropy (from Bayesian approach)
+    mean_entropy = -(mean_probs * torch.log(mean_probs + 1e-10)).sum(dim=-1)
+    metrics["mean_entropy"] = mean_entropy
 
     # Calibration if labels provided
     if labels is not None:

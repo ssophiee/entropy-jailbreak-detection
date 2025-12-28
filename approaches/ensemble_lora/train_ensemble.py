@@ -1,5 +1,6 @@
 """Train multiple LoRA adapters with different random seeds for ensemble."""
 import os
+import gc
 import torch
 from peft import LoraConfig, get_peft_model, TaskType
 from transformers import AutoModelForCausalLM
@@ -73,6 +74,8 @@ def train_lora_ensemble(
             base_model_name,
             torch_dtype=torch.float16 if device == "cuda" else torch.float32,
             device_map="auto" if device == "cuda" else None,
+            low_cpu_mem_usage=True,  # Reduce RAM usage during loading
+            use_safetensors=True,     # Use safer tensor format
         )
 
         # Configure LoRA
@@ -135,7 +138,10 @@ def train_lora_ensemble(
 
         # Cleanup
         del model, base_model, optimizer
-        torch.cuda.empty_cache() if torch.cuda.is_available() else None
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
 
     print(f"\n{'='*60}")
     print(f"✓ Ensemble Training Complete!")

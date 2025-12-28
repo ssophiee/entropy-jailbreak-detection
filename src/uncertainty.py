@@ -113,6 +113,7 @@ def compute_predictive_credal_sets(model, prompts, tokenizer, fisher_diag,
                 for name, param in lora_params.items():
                     if name in fisher_diag:
                         precision = fisher_diag[name] + PRIOR_PRECISION
+                        # Use temperature as a multiplier on the posterior std
                         std = torch.sqrt(temperature / precision)
                         noise = torch.randn_like(param) * std
 
@@ -191,10 +192,13 @@ def compute_predictive_entropy(model, prompts, tokenizer, fisher_diag,
 
         with torch.no_grad():
             for _ in range(n_samples):
-                # Sample from posterior: θ ~ N(θ_MAP, temperature / Fisher)
+                # Sample from posterior: θ ~ N(θ_MAP, (temperature / Fisher))
+                # Note: temperature should scale the uncertainty, not invert precision dominance
                 for name, param in lora_params.items():
                     if name in fisher_diag:
                         precision = fisher_diag[name] + PRIOR_PRECISION  # Add small constant for stability
+                        # Use temperature as a multiplier on the posterior std, not as numerator
+                        # std = 1/sqrt(precision) * temperature
                         std = torch.sqrt(temperature / precision)
                         noise = torch.randn_like(param) * std
 

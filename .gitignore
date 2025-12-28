@@ -1,8 +1,17 @@
+# Environment files
 .env
-*.pt
-!fisher_diag.pt
+
+# OS files
 .DS_Store
+**/.DS_Store
+
+# Documentation and notes
 to_do.md
 *FIXES_APPLIED.md
 *FISHER_FIX_INSTRUCTIONS.md
+*morning-todo.md
+*colab_manual.md
+
+# Scripts marked for removal
 inspect_fisher.py
+example_bayesian_lora_kfac[remove].py
