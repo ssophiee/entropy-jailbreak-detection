@@ -70,7 +70,6 @@ from .uncertainty import (
     predictive_entropy,
     mutual_information,
     variance_of_predictions,
-    ensemble_diversity,
     expected_calibration_error,
     compute_uncertainty_metrics,
     compute_entropy_for_prompts,

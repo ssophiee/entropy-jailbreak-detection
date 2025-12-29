@@ -22,7 +22,7 @@ class EnsembleLoRAInference:
         base_model_name: str,
         adapter_paths: List[str],
         device: str = "cuda",
-        torch_dtype=torch.float16
+        torch_dtype=torch.float32  # Changed from float16 to fix NaN issues
     ):
         """
         Initialize ensemble inference.
@@ -53,9 +53,15 @@ class EnsembleLoRAInference:
 
     def load_adapter(self, adapter_path: str):
         """Load a specific adapter onto the base model."""
-        model = PeftModel.from_pretrained(self.base_model, adapter_path)
+        model = PeftModel.from_pretrained(
+            self.base_model,
+            adapter_path,
+            is_trainable=False  # Explicitly set inference mode
+        )
         model.to(self.device)
         model.eval()
+        # Ensure float32 for numerical stability
+        model = model.float()
         return model
 
     def predict_with_adapter(
@@ -95,10 +101,22 @@ class EnsembleLoRAInference:
                 outputs = model(**inputs)
                 logits = outputs.logits[:, -1, :]  # Last token logits
 
+                # Debug: Check logits before conversion
+                if torch.isnan(logits).any() or torch.isinf(logits).any():
+                    print(f"WARNING: Logits contain NaN/Inf BEFORE float conversion!")
+                    print(f"  NaN count: {torch.isnan(logits).sum().item()}")
+                    print(f"  Inf count: {torch.isinf(logits).sum().item()}")
+                    print(f"  Logits dtype: {logits.dtype}")
+                    print(f"  Logits min: {logits[~torch.isnan(logits) & ~torch.isinf(logits)].min().item() if (~torch.isnan(logits) & ~torch.isinf(logits)).any() else 'all nan/inf'}")
+                    print(f"  Logits max: {logits[~torch.isnan(logits) & ~torch.isinf(logits)].max().item() if (~torch.isnan(logits) & ~torch.isinf(logits)).any() else 'all nan/inf'}")
+
                 if return_logits:
-                    all_outputs.append(logits.cpu())
+                    # Convert to float32 before moving to CPU to avoid float16 overflow
+                    all_outputs.append(logits.float().cpu())
                 else:
-                    probs = F.softmax(logits, dim=-1)
+                    # Convert to float32 for numerical stability
+                    logits_f32 = logits.float()
+                    probs = F.softmax(logits_f32, dim=-1)
                     all_outputs.append(probs.cpu())
 
         # Cleanup
@@ -130,13 +148,41 @@ class EnsembleLoRAInference:
 
         all_adapter_probs = []
 
+        # Get logits from first adapter for debugging (before tqdm)
+        import sys
+        sys.stderr.write("\n[DEBUG] Testing first adapter...\n")
+        sys.stderr.flush()
+        logits_test = self.predict_with_adapter(
+            self.adapter_paths[0], prompts, max_length, return_logits=True
+        )
+        sys.stderr.write(f"  Logits shape: {logits_test.shape}, dtype: {logits_test.dtype}, device: {logits_test.device}\n")
+        sys.stderr.write(f"  Logits has NaN: {torch.isnan(logits_test).any().item()}\n")
+        sys.stderr.write(f"  Logits has Inf: {torch.isinf(logits_test).any().item()}\n")
+        if not torch.isnan(logits_test).any() and not torch.isinf(logits_test).any():
+            sys.stderr.write(f"  Logits range: [{logits_test.min().item():.2f}, {logits_test.max().item():.2f}]\n")
+            sys.stderr.write(f"  Logits stats: mean={logits_test.mean().item():.2f}, std={logits_test.std().item():.2f}\n")
+
+        # Test softmax
+        logits_f32_test = logits_test.float()
+        probs_test = F.softmax(logits_f32_test, dim=-1)
+        sys.stderr.write(f"  After softmax:\n")
+        sys.stderr.write(f"    Probs has NaN: {torch.isnan(probs_test).any().item()}\n")
+        sys.stderr.write(f"    Probs has Inf: {torch.isinf(probs_test).any().item()}\n")
+        if not torch.isnan(probs_test).any():
+            sys.stderr.write(f"    Probs range: [{probs_test.min().item():.6f}, {probs_test.max().item():.6f}]\n")
+            sys.stderr.write(f"    Probs sum (first prompt): {probs_test[0, :].sum().item():.6f}\n\n")
+        sys.stderr.flush()
+
+        # Now run the actual ensemble loop
         print(f"Running ensemble inference with {len(self.adapter_paths)} adapters...")
         for adapter_path in tqdm(self.adapter_paths, desc="Adapters"):
             # Get logits from this adapter
             logits = self.predict_with_adapter(
                 adapter_path, prompts, max_length, return_logits=True
             )
-            probs = F.softmax(logits, dim=-1)
+            # Convert to float32 for numerical stability before softmax
+            logits_f32 = logits.float()
+            probs = F.softmax(logits_f32, dim=-1)
             all_adapter_probs.append(probs)
 
         # Stack: [n_adapters, n_prompts, vocab_size]
@@ -286,7 +332,9 @@ def swap_and_predict(
 
                 outputs = model(**inputs)
                 logits = outputs.logits[:, -1, :]
-                probs = F.softmax(logits, dim=-1)
+                # Convert to float32 for numerical stability
+                logits_f32 = logits.float()
+                probs = F.softmax(logits_f32, dim=-1)
                 prompt_probs.append(probs.cpu())
 
         all_probs.append(torch.stack(prompt_probs, dim=0).squeeze(1))
