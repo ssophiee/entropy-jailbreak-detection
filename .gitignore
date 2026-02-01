@@ -15,3 +15,6 @@ to_do.md
 # Scripts marked for removal
 inspect_fisher.py
 example_bayesian_lora_kfac[remove].py
+
+__pycache__/*
+*.pyc
