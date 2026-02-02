@@ -166,6 +166,11 @@ def embed_texts(
 
     embedder = _get_sentence_embedder(embed_model_name, device=device)
 
+    # Set truncation length if supported (most ST models expose this attr)
+    # NOTE: must be set BEFORE encode to take effect; we set it opportunistically.
+    if hasattr(embedder, "max_seq_length") and isinstance(max_length, int) and max_length > 0:
+        embedder.max_seq_length = max_length
+
     # sentence-transformers handles tokenization/pooling internally.
     # normalize_embeddings=True gives unit-norm vectors (cosine = dot).
     vecs_np = embedder.encode(
@@ -176,11 +181,6 @@ def embed_texts(
         normalize_embeddings=True,
         # truncation happens via max_seq_length (below)
     )
-
-    # Set truncation length if supported (most ST models expose this attr)
-    # NOTE: must be set BEFORE encode to take effect; we set it opportunistically.
-    if hasattr(embedder, "max_seq_length") and isinstance(max_length, int) and max_length > 0:
-        embedder.max_seq_length = max_length
 
     vecs = torch.from_numpy(vecs_np).float()
 

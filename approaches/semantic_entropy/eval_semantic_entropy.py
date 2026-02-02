@@ -11,6 +11,20 @@ from sklearn.metrics import (
 # Utils
 # -------------------------
 
+def scores_to_probs_ecdf(scores, eps=1e-6):
+    """
+    Monotonic mapping scores -> (0,1) using empirical CDF (rank transform).
+    Stable vs min-max and preserves ordering.
+    """
+    scores = np.asarray(scores, dtype=float)
+    n = len(scores)
+    # ranks in [0, n-1]
+    ranks = scores.argsort().argsort().astype(float)
+    probs = (ranks + 1.0) / (n + 1.0)  # avoid 0/1 exactly
+    probs = np.clip(probs, eps, 1.0 - eps)
+    return probs
+
+
 def compute_accuracy(y_true, scores, threshold):
     preds = (scores >= threshold).astype(int)
     return (preds == y_true).mean()
@@ -80,18 +94,11 @@ def evaluate_from_json(json_path, score_key="semantic_entropy"):
     # Convert scores -> pseudo-prob via min-max scaling
     # (monotonic, so AUROC/AP unaffected; calibration is "relative")
     # -------------------------
-    s_min, s_max = float(scores.min()), float(scores.max())
-    if abs(s_max - s_min) < 1e-12:
-        probs = np.full_like(scores, 0.5, dtype=float)
-    else:
-        probs = (scores - s_min) / (s_max - s_min)
-        probs = np.clip(probs, 0.0, 1.0)
-
+    probs = scores_to_probs_ecdf(scores)
     metrics["ece"] = compute_ece(y_true, probs, n_bins=10)
     metrics["brier"] = brier_score_loss(y_true, probs)
+    metrics["prob_transform"] = "ecdf_rank"
 
-    # (optional) report scaling range so it's explicit in logs/paper
-    metrics["prob_transform"] = f"minmax[{s_min:.4f},{s_max:.4f}]"
 
     return metrics
 
