@@ -64,7 +64,7 @@ def train_lora(model, train_loader, epochs=1, lr=3e-4, device=None, save_dir=Non
     import time
     import os
     import torch
-    from .constants import FINE_TUNED_MODEL_DIR
+    from src.constants import FINE_TUNED_MODEL_DIR
 
     # Normalize device
     if device is None:

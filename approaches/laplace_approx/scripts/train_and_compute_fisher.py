@@ -25,8 +25,8 @@ sys.path.insert(0, repo_root)
 
 import src.constants as constants
 from src.data_utils import load_training_and_test_data, create_dataloader
-from src.training import setup_model_and_lora, train_lora
-from src.laplace import collect_laplace_data, compute_diagonal_fisher
+from training import setup_model_and_lora, train_lora
+from laplace import collect_laplace_data, compute_diagonal_fisher
 
 
 

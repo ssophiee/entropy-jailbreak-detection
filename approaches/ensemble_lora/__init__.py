@@ -3,7 +3,7 @@
 LoRA Ensemble Approach for Uncertainty Quantification
 ======================================================
 
-This package implements efficient ensemble methods using LoRA (Low-Rank Adapters):
+This package implements ensemble method using LoRA (Low-Rank Adapters):
 
 Key Features:
 - Memory Efficient: Only one base model + multiple tiny adapters
@@ -37,19 +37,7 @@ agg_probs, all_probs = ensemble.ensemble_predict(["What is AI?"])
 
 # 3. Compute uncertainty metrics
 from approaches.ensemble_lora import compute_uncertainty_metrics
-
 metrics = compute_uncertainty_metrics(all_probs)
-print(f"Predictive Entropy: {metrics['predictive_entropy']}")
-print(f"Mutual Information: {metrics['mutual_information']}")
-
-# 4. Detect OOD samples
-from approaches.ensemble_lora import detect_ood_by_entropy
-
-ood_results = detect_ood_by_entropy(
-    in_distribution_prompts=train_prompts,
-    test_prompts=test_prompts,
-    ensemble_inference=ensemble
-)
 """
 
 # Training
@@ -72,10 +60,7 @@ from .uncertainty import (
     variance_of_predictions,
     expected_calibration_error,
     compute_uncertainty_metrics,
-    compute_entropy_for_prompts,
-    rank_by_uncertainty,
-    detect_ood_by_entropy,
-    compute_predictive_entropy
+    compute_predictive_entropy,
 )
 
 __all__ = [
@@ -90,11 +75,7 @@ __all__ = [
     "predictive_entropy",
     "mutual_information",
     "variance_of_predictions",
-    "ensemble_diversity",
     "expected_calibration_error",
     "compute_uncertainty_metrics",
-    "compute_entropy_for_prompts",
-    "rank_by_uncertainty",
-    "detect_ood_by_entropy",
     "compute_predictive_entropy",
 ]

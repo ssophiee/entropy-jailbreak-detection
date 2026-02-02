@@ -1,19 +1,7 @@
-from torch.nn import functional as F
+"""Shared uncertainty quantification utilities."""
 import torch
-from tqdm import tqdm
 import numpy as np
 
-import os, sys
-import torch
-import argparse
-from datetime import datetime
-
-this_dir = os.path.dirname(__file__)        
-repo_root = os.path.abspath(os.path.join(this_dir, ".."))
-sys.path.insert(0, repo_root)
-
-
-from src.constants import MAX_LENGTH, PRIOR_PRECISION
 
 # from https://github.com/WangKaizheng/CreINNs/blob/main/CreINNs_main_implementation/CreINNTestMulti.py
 def compute_intersection_probability(upper_probs, lower_probs):
@@ -37,230 +25,153 @@ def compute_intersection_probability(upper_probs, lower_probs):
         alpha_num = 1.0 - np.sum(lower_probs, axis=-1, keepdims=True)
         alpha_denom = np.sum(upper_probs - lower_probs, axis=-1, keepdims=True)
         alpha = alpha_num / alpha_denom
-        print(f"Alpha: {alpha[0]:.6f}")
         intersection_probs = (upper_probs - lower_probs) * alpha + lower_probs
 
     return intersection_probs
 
 
-def compute_uncertainty_metrics(all_logits, top_k=100):
-    """Compute multiple credal set metrics"""
-    # TODO: on the call was mentioned that softmax might not be ideal here
-    all_probs = F.softmax(all_logits, dim=-1)  # [n_samples, 1, vocab_size]
-
-    lower_probs = all_probs.min(dim=0).values.squeeze()
-    upper_probs = all_probs.max(dim=0).values.squeeze()
-
-    # Entropy-based metrics (mean entropy, intersection entropy)
-    mean_probs = all_probs.mean(dim=0).squeeze()
-    mean_probs_entropy = -(mean_probs * torch.log(mean_probs + 1e-10)).sum().item()
-
-    intersection_prob = compute_intersection_probability(upper_probs.cpu().numpy(), lower_probs.cpu().numpy())
-    intersection_prob_entropy = -(intersection_prob * np.log(intersection_prob + 1e-10)).sum().item()
-
-    # TODO: credal set might not be needed (or might be incorrectly defined)
-    _, top_indices = torch.topk(mean_probs, k=top_k)
-    top_probs = all_probs[:, 0, top_indices]
-    lower_topk = top_probs.min(dim=0).values
-    upper_topk = top_probs.max(dim=0).values
-    widths_topk = upper_topk - lower_topk
-    widths_full = upper_probs - lower_probs
-
-    # TODO: might be the case that those metrics are not needed: credal_width_full, credal_width_topk, 
-    # credal_width_topk_mean, credal_width_topk_max
-    return {
-        # 'credal_width_full': widths_full.sum().item(),
-        # 'credal_width_topk': widths_topk.sum().item(),
-        # 'credal_width_topk_mean': widths_topk.mean().item(),
-        # 'credal_width_topk_max': widths_topk.max().item(),
-        # 'top_k': top_k,
-        'vocab_size': all_probs.shape[-1],
-        'mean_entropy': mean_probs_entropy,
-        "intersection_probs_entropy": intersection_prob_entropy
-    }
-def compute_predictive_credal_sets(model, prompts, tokenizer, fisher_diag,
-                                   n_samples=20, temperature=0.05, 
-                                   top_k=100, device="cuda"):
+def predictive_entropy(probs: torch.Tensor, dim: int = 0) -> torch.Tensor:
     """
-    Compute credal sets using Laplace approximation.
-    
-    Args:
-        top_k: If None, use full vocabulary. If int, use top-K budgeting.
-    """
-    print(f"Computing credal sets for {len(prompts)} prompts...")
-    
-    model.eval()
-    results = []
-    
-    lora_params = {n: p for n, p in model.named_parameters()
-                   if 'lora' in n and p.requires_grad}
-    original_state = {n: p.data.clone() for n, p in lora_params.items()}
+    Compute predictive entropy from ensemble/sample predictions.
 
-    for prompt in tqdm(prompts, desc="Computing credal sets"):
-        inputs = tokenizer(
-            prompt,
-            return_tensors="pt",
-            truncation=True,
-            max_length=MAX_LENGTH
-        ).to(device)
-        
-        logit_samples = []
-        
-        with torch.no_grad():
-            for sample_idx in range(n_samples):
-                # Sample from posterior
-                total_noise_norm = 0.0
-                for name, param in lora_params.items():
-                    if name in fisher_diag:
-                        precision = fisher_diag[name] + PRIOR_PRECISION
-                        # Use temperature as a multiplier on the posterior std
-                        std = torch.sqrt(temperature / precision)
-                        noise = torch.randn_like(param) * std
-
-                        # Print meaningful statistics
-                        param_norm = original_state[name].norm().item()
-                        noise_norm = noise.norm().item()
-                        noise_to_param_ratio = noise_norm / (param_norm + 1e-10)
-                        
-                        print(f"\n{name}:")
-                        print(f"  Param norm: {param_norm:.6f}")
-                        print(f"  Noise norm: {noise_norm:.6f}")
-                        print(f"  Noise/Param ratio: {noise_to_param_ratio:.4f} ({noise_to_param_ratio*100:.2f}%)")
-                        print(f"  Param mean: {original_state[name].mean().item():.6f}, std: {original_state[name].std().item():.6f}")
-                        print(f"  Noise mean: {noise.mean().item():.6f}, std: {noise.std().item():.6f}")
-
-                        param.data = original_state[name] + noise
-                        total_noise_norm += noise.norm().item()
-
-                outputs = model(**inputs)
-                logits = outputs.logits[:, -1, :]
-                logit_samples.append(logits.cpu())
-
-                # Restore
-                for name, param in lora_params.items():
-                    param.data = original_state[name]
-        
-        # Compute metrics 
-        all_logits = torch.stack(logit_samples, dim=0)
-        metrics = compute_uncertainty_metrics(all_logits, top_k=top_k)
-        results.append(metrics)
-        
-        # Cleanup
-        if len(results) % 10 == 0 and torch.cuda.is_available():
-            torch.cuda.empty_cache()
-    
-    return results
-
-
-def compute_predictive_entropy(model, prompts, tokenizer, fisher_diag,
-                               n_samples=20, temperature=0.05, device="cuda",
-                               metric="mutual_information", debug=False):
-    """
-    Compute epistemic uncertainty metrics using Laplace approximation.
+    Predictive Entropy = H[E[p(y|x)]] where expectation is over samples
 
     Args:
-        metric: One of "mutual_information", "predictive_variance", "mean_entropy"
-            - mutual_information: I[y;θ|x] = H[E[p]] - E[H[p]] (RECOMMENDED for adversarial detection)
-            - predictive_variance: Variance of max probability across samples
-            - mean_entropy: H[E[p]] (original, less sensitive to epistemic uncertainty)
+        probs: Probability tensor [n_samples, n_prompts, vocab_size]
+               or [n_prompts, vocab_size] if already averaged
+        dim: Dimension to average over (0 for samples)
 
     Returns:
-        List of uncertainty values (higher = more uncertain)
+        entropy: [n_prompts] tensor of entropy values
     """
-    print(f"Computing {metric} for {len(prompts)} prompts...")
+    # Average predictions across samples
+    if probs.dim() == 3:
+        mean_probs = probs.mean(dim=dim)  # [n_prompts, vocab_size]
+    else:
+        mean_probs = probs
 
-    model.eval()
-    uncertainties = []
+    # Compute entropy: -sum(p * log(p))
+    entropy = -(mean_probs * torch.log(mean_probs + 1e-10)).sum(dim=-1)
+    return entropy
 
-    # Get LoRA parameters
-    lora_params = {n: p for n, p in model.named_parameters()
-                   if 'lora' in n and p.requires_grad}
 
-    # Save original parameters (MAP estimate)
-    original_state = {n: p.data.clone() for n, p in lora_params.items()}
+def mutual_information(probs: torch.Tensor) -> torch.Tensor:
+    """
+    Compute mutual information (epistemic uncertainty).
 
-    for prompt in tqdm(prompts, desc=f"Computing {metric}"):
-        # Tokenize prompt
-        inputs = tokenizer(
-            prompt,
-            return_tensors="pt",
-            truncation=True,
-            max_length=MAX_LENGTH
-        ).to(device)
+    MI = H[E[p(y|x)]] - E[H[p(y|x)]]
+       = Predictive Entropy - Expected Data Entropy
 
-        logit_samples = []
+    High MI indicates model uncertainty (disagreement among samples).
 
-        with torch.no_grad():
-            for _ in range(n_samples):
-                # Sample from posterior: θ ~ N(θ_MAP, (temperature / Fisher))
-                # Note: temperature should scale the uncertainty, not invert precision dominance
-                for name, param in lora_params.items():
-                    if name in fisher_diag:
-                        precision = fisher_diag[name] + PRIOR_PRECISION  # Add small constant for stability
-                        # Use temperature as a multiplier on the posterior std, not as numerator
-                        # std = 1/sqrt(precision) * temperature
-                        std = torch.sqrt(temperature / precision)
-                        noise = torch.randn_like(param) * std
+    Args:
+        probs: [n_samples, n_prompts, vocab_size]
 
-                        # Print meaningful statistics
-                        param_norm = original_state[name].norm().item()
-                        noise_norm = noise.norm().item()
-                        noise_to_param_ratio = noise_norm / (param_norm + 1e-10)
+    Returns:
+        mi: [n_prompts] mutual information values
+    """
+    # Predictive entropy
+    pred_entropy = predictive_entropy(probs, dim=0)
 
-                        if debug:
-                          print(f"\n{name}:")
-                          print(f"  Param norm: {param_norm:.6f}")
-                          print(f"  Noise norm: {noise_norm:.6f}")
-                          print(f"  Noise/Param ratio: {noise_to_param_ratio:.4f} ({noise_to_param_ratio*100:.2f}%)")
-                          print(f"  Param mean: {original_state[name].mean().item():.6f}, std: {original_state[name].std().item():.6f}")
-                          print(f"  Noise mean: {noise.mean().item():.6f}, std: {noise.std().item():.6f}")
+    # Expected data entropy (average entropy of each sample)
+    data_entropy = -(probs * torch.log(probs + 1e-10)).sum(dim=-1)  # [n_samples, n_prompts]
+    expected_data_entropy = data_entropy.mean(dim=0)  # [n_prompts]
 
-                        param.data = original_state[name] + noise
+    mi = pred_entropy - expected_data_entropy
+    return mi
 
-                # Forward pass with sampled parameters
-                outputs = model(**inputs)
-                logits = outputs.logits[:, -1, :]  # Last token logits
-                logit_samples.append(logits.cpu())
 
-                # Restore original parameters
-                for name, param in lora_params.items():
-                    param.data = original_state[name]
+def variance_of_predictions(probs: torch.Tensor) -> torch.Tensor:
+    """
+    Compute variance across sample predictions.
 
-        # Compute uncertainty metric
-        all_logits = torch.stack(logit_samples, dim=0)  # [n_samples, 1, vocab_size]
-        all_probs = F.softmax(all_logits, dim=-1).squeeze(1)  # [n_samples, vocab_size]
+    Args:
+        probs: [n_samples, n_prompts, vocab_size]
 
-        if metric == "mutual_information":
-            # I[y;θ|x] = H[E[p(y|θ)]] - E[H[p(y|θ)]]
-            # This captures epistemic uncertainty - how much the model disagrees with itself
+    Returns:
+        variance: [n_prompts] variance of predicted class probabilities
+    """
+    # Get predicted class for each sample
+    predicted_probs, _ = probs.max(dim=-1)  # [n_samples, n_prompts]
 
-            # H[E[p]]: Entropy of the mean distribution
-            mean_probs = all_probs.mean(dim=0)  # [vocab_size]
-            h_mean = -(mean_probs * torch.log(mean_probs + 1e-10)).sum()
+    # Variance across samples
+    variance = predicted_probs.var(dim=0)  # [n_prompts]
+    return variance
 
-            # E[H[p]]: Expected entropy across samples
-            sample_entropies = -(all_probs * torch.log(all_probs + 1e-10)).sum(dim=1)  # [n_samples]
-            mean_h = sample_entropies.mean()
 
-            uncertainty = (h_mean - mean_h).item()
+def expected_calibration_error(
+    probs: torch.Tensor,
+    labels: torch.Tensor,
+    n_bins: int = 10
+) -> float:
+    """
+    Compute Expected Calibration Error (ECE).
 
-        elif metric == "predictive_variance":
-            # Variance in the predicted probability of the most likely class
-            max_probs = all_probs.max(dim=1).values  # [n_samples]
-            uncertainty = max_probs.var().item()
+    Measures how well predicted confidences match actual accuracy.
 
-        elif metric == "mean_entropy":
-            # Original metric: entropy of the mean distribution
-            mean_probs = all_probs.mean(dim=0)
-            uncertainty = -(mean_probs * torch.log(mean_probs + 1e-10)).sum().item()
+    Args:
+        probs: [n_prompts, vocab_size] predicted probabilities
+        labels: [n_prompts] true class labels
+        n_bins: Number of bins for calibration
 
-        else:
-            raise ValueError(f"Unknown metric: {metric}")
+    Returns:
+        ece: Expected Calibration Error
+    """
+    confidences, predictions = probs.max(dim=-1)
+    accuracies = (predictions == labels).float()
 
-        uncertainties.append(uncertainty)
+    # Bin by confidence
+    ece = 0.0
+    bin_edges = torch.linspace(0, 1, n_bins + 1)
 
-        # Periodic cleanup
-        if len(uncertainties) % 10 == 0 and torch.cuda.is_available():
-            torch.cuda.empty_cache()
+    for i in range(n_bins):
+        bin_mask = (confidences > bin_edges[i]) & (confidences <= bin_edges[i + 1])
+        if bin_mask.sum() > 0:
+            bin_accuracy = accuracies[bin_mask].mean()
+            bin_confidence = confidences[bin_mask].mean()
+            bin_size = bin_mask.sum().float()
+            ece += (bin_size / len(probs)) * torch.abs(bin_accuracy - bin_confidence)
 
-    return uncertainties
+    return ece.item()
+
+
+def compute_uncertainty_metrics(all_probs: torch.Tensor) -> dict:
+    """
+    Compute comprehensive uncertainty metrics for a single prompt.
+
+    Args:
+        all_probs: [n_samples, 1, vocab_size] probability tensor for one prompt
+
+    Returns:
+        metrics: Dictionary with scalar uncertainty measures
+    """
+    # Get lower and upper bounds from samples
+    lower_probs = all_probs.min(dim=0).values.squeeze()  # [vocab_size]
+    upper_probs = all_probs.max(dim=0).values.squeeze()  # [vocab_size]
+
+    # Mean prediction
+    mean_probs = all_probs.mean(dim=0).squeeze()  # [vocab_size]
+
+    # Compute metrics using shared functions
+    metrics = {
+        "predictive_entropy": predictive_entropy(all_probs).item(),
+        "mutual_information": mutual_information(all_probs).item(),
+        "variance": variance_of_predictions(all_probs).item(),
+        "mean_confidence": mean_probs.max().item(),
+    }
+
+    # Intersection probability entropy (credal set metric)
+    intersection_prob = compute_intersection_probability(
+        upper_probs.cpu().numpy(),
+        lower_probs.cpu().numpy()
+    )
+    metrics["intersection_probs_entropy"] = -(
+        intersection_prob * np.log(intersection_prob + 1e-10)
+    ).sum().item()
+
+    # Mean entropy
+    metrics["mean_entropy"] = -(
+        mean_probs * torch.log(mean_probs + 1e-10)
+    ).sum().item()
+
+    return metrics

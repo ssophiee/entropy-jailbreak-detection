@@ -11,6 +11,7 @@ This script:
 Usage:
     python compute_ensemble_entropy.py --ensemble_dir saved_models/ensemble_lora_123456
     python compute_ensemble_entropy.py --ensemble_dir saved_models/my_ensemble --output results.json
+    python compute_ensemble_entropy.py --ensemble_dir saved_models/my_ensemble --visualize
 """
 import os
 import sys
@@ -20,6 +21,9 @@ import torch
 import numpy as np
 from datetime import datetime
 from scipy import stats
+from scipy.stats import gaussian_kde
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # Add repo root to path
 this_dir = os.path.dirname(__file__)
@@ -29,7 +33,66 @@ sys.path.insert(0, repo_root)
 import src.constants as constants
 from src.data_utils import load_training_and_test_data
 from approaches.ensemble_lora.inference import load_ensemble_from_directory
-from approaches.ensemble_lora.uncertainty import compute_uncertainty_metrics
+from approaches.ensemble_lora.uncertainty import compute_predictive_entropy
+
+
+def plot_metric_distributions(safe_values, harmful_values, metric_name, output_dir):
+    """Plot distribution comparison for a metric"""
+    safe_values = np.array(safe_values)
+    harmful_values = np.array(harmful_values)
+
+    # Set style
+    sns.set_style("whitegrid")
+
+    # Create figure with two subplots
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+    # 1. Histogram with KDE
+    ax1 = axes[0]
+    ax1.hist(safe_values, bins=30, alpha=0.6, label='Safe', color='blue', density=True, edgecolor='black')
+    ax1.hist(harmful_values, bins=30, alpha=0.6, label='Harmful', color='red', density=True, edgecolor='black')
+
+    # Add KDE curves
+    if len(safe_values) > 1:
+        kde_safe = gaussian_kde(safe_values)
+        x_safe = np.linspace(safe_values.min(), safe_values.max(), 100)
+        ax1.plot(x_safe, kde_safe(x_safe), color='blue', linewidth=2, linestyle='--')
+
+    if len(harmful_values) > 1:
+        kde_harmful = gaussian_kde(harmful_values)
+        x_harmful = np.linspace(harmful_values.min(), harmful_values.max(), 100)
+        ax1.plot(x_harmful, kde_harmful(x_harmful), color='red', linewidth=2, linestyle='--')
+
+    ax1.set_xlabel(metric_name.replace('_', ' ').title(), fontsize=12)
+    ax1.set_ylabel('Density', fontsize=12)
+    ax1.set_title(f'Distribution: {metric_name.replace("_", " ").title()}', fontsize=14, fontweight='bold')
+    ax1.legend(fontsize=11)
+    ax1.grid(True, alpha=0.3)
+
+    # 2. Box plot
+    ax2 = axes[1]
+    data_to_plot = [safe_values, harmful_values]
+    box = ax2.boxplot(data_to_plot, labels=['Safe', 'Harmful'], patch_artist=True,
+                      widths=0.6, showmeans=True, meanline=True)
+
+    # Color the boxes
+    colors = ['lightblue', 'lightcoral']
+    for patch, color in zip(box['boxes'], colors):
+        patch.set_facecolor(color)
+        patch.set_alpha(0.7)
+
+    ax2.set_ylabel(metric_name.replace('_', ' ').title(), fontsize=12)
+    ax2.set_title(f'Box Plot: {metric_name.replace("_", " ").title()}', fontsize=14, fontweight='bold')
+    ax2.grid(True, alpha=0.3, axis='y')
+
+    plt.tight_layout()
+
+    # Save figure
+    output_path = os.path.join(output_dir, f'{metric_name}_distribution.png')
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
+
+    print(f"    → Saved plot: {output_path}")
 
 
 def compute_statistics(safe_values, harmful_values, metric_name):
@@ -131,52 +194,29 @@ def main(args):
 
     # Process safe prompts
     print("\n  Computing metrics for SAFE prompts...")
-    import sys
-    sys.stdout.flush()
-    _, safe_probs = ensemble_inference.ensemble_predict(
+    safe_metrics_list = compute_predictive_entropy(
+        ensemble_inference,
         test_safe_prompts,
-        max_length=constants.MAX_LENGTH
+        max_length=constants.MAX_LENGTH,
+        metric=None  # Get all metrics
     )
-    sys.stdout.flush()
 
-    # Debug: Check for NaN/inf in probabilities
-    print(f"  Safe probs shape: {safe_probs.shape}")
-    print(f"  Safe probs has NaN: {torch.isnan(safe_probs).any().item()}")
-    print(f"  Safe probs has Inf: {torch.isinf(safe_probs).any().item()}")
-    print(f"  Safe probs min: {safe_probs.min().item():.6f}, max: {safe_probs.max().item():.6f}")
-    print(f"  Safe probs sum along vocab (should be ~1): {safe_probs[0, 0, :].sum().item():.6f}")
-
-    safe_metrics = compute_uncertainty_metrics(safe_probs)
-
-    # Convert tensors to lists for JSON serialization
-    for key, value in safe_metrics.items():
-        if isinstance(value, torch.Tensor):
-            results["safe"][key] = value.tolist()
-        else:
-            results["safe"][key] = value
+    # Aggregate per-prompt metrics into category-level lists
+    for key in safe_metrics_list[0].keys():
+        results["safe"][key] = [m[key] for m in safe_metrics_list]
 
     # Process harmful prompts
     print("  Computing metrics for HARMFUL prompts...")
-    _, harmful_probs = ensemble_inference.ensemble_predict(
+    harmful_metrics_list = compute_predictive_entropy(
+        ensemble_inference,
         test_harmful_prompts,
-        max_length=constants.MAX_LENGTH
+        max_length=constants.MAX_LENGTH,
+        metric=None  # Get all metrics
     )
 
-    # Debug: Check for NaN/inf in probabilities
-    print(f"  Harmful probs shape: {harmful_probs.shape}")
-    print(f"  Harmful probs has NaN: {torch.isnan(harmful_probs).any().item()}")
-    print(f"  Harmful probs has Inf: {torch.isinf(harmful_probs).any().item()}")
-    print(f"  Harmful probs min: {harmful_probs.min().item():.6f}, max: {harmful_probs.max().item():.6f}")
-    print(f"  Harmful probs sum along vocab (should be ~1): {harmful_probs[0, 0, :].sum().item():.6f}")
-
-    harmful_metrics = compute_uncertainty_metrics(harmful_probs)
-
-    # Convert tensors to lists for JSON serialization
-    for key, value in harmful_metrics.items():
-        if isinstance(value, torch.Tensor):
-            results["harmful"][key] = value.tolist()
-        else:
-            results["harmful"][key] = value
+    # Aggregate per-prompt metrics into category-level lists
+    for key in harmful_metrics_list[0].keys():
+        results["harmful"][key] = [m[key] for m in harmful_metrics_list]
 
     # Add prompts to results
     results["safe"]["prompts"] = test_safe_prompts
@@ -202,6 +242,10 @@ def main(args):
             if isinstance(safe_values, list) and isinstance(harmful_values, list):
                 stats_result = compute_statistics(safe_values, harmful_values, metric_name)
                 results["statistical_tests"][metric_name] = stats_result
+
+                # Generate visualizations if requested
+                if args.visualize:
+                    plot_metric_distributions(safe_values, harmful_values, metric_name, args.ensemble_dir)
 
     # 5. Save results
     output_file = args.output or os.path.join(args.ensemble_dir, "uncertainty_metrics.json")
@@ -232,6 +276,11 @@ if __name__ == "__main__":
         type=str,
         default=None,
         help="Output JSON file path (default: <ensemble_dir>/uncertainty_metrics.json)"
+    )
+    parser.add_argument(
+        "--visualize",
+        action="store_true",
+        help="Generate distribution plots for all metrics"
     )
 
     args = parser.parse_args()

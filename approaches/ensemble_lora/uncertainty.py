@@ -1,200 +1,15 @@
 """Uncertainty quantification for LoRA ensembles."""
-import torch
-import torch.nn.functional as F
 from typing import List, Union, Dict, Optional
-import numpy as np
-from tqdm import tqdm
+
+from src.uncertainty import compute_uncertainty_metrics
 
 
-# from https://github.com/WangKaizheng/CreINNs/blob/main/CreINNs_main_implementation/CreINNTestMulti.py
-def compute_intersection_probability(upper_probs, lower_probs):
-    """
-    Compute intersection probability for credal sets.
-
-    For a single sample (1D arrays):
-    - alpha determines where intersection sits between lower and upper bounds
-    - alpha ≈ 0 means intersection is near lower bound (high certainty)
-    - alpha ≈ 1 means intersection is near upper bound (high uncertainty)
-    """
-    if upper_probs.ndim == 1:
-        # Single sample case
-        alpha_num = 1.0 - np.sum(lower_probs)
-        alpha_denom = np.sum(upper_probs - lower_probs)
-
-        alpha = alpha_num / alpha_denom
-        intersection_probs = (upper_probs - lower_probs) * alpha + lower_probs
-    else:
-        # Batched case (original CreINNs code)
-        alpha_num = 1.0 - np.sum(lower_probs, axis=-1, keepdims=True)
-        alpha_denom = np.sum(upper_probs - lower_probs, axis=-1, keepdims=True)
-        alpha = alpha_num / alpha_denom
-        intersection_probs = (upper_probs - lower_probs) * alpha + lower_probs
-
-    return intersection_probs
-
-
-def predictive_entropy(probs: torch.Tensor, dim: int = 0) -> torch.Tensor:
-    """
-    Compute predictive entropy from ensemble predictions.
-
-    Predictive Entropy = H[E[p(y|x)]] where expectation is over ensemble
-
-    Args:
-        probs: Probability tensor [n_adapters, n_prompts, vocab_size]
-               or [n_prompts, vocab_size] if already averaged
-        dim: Dimension to average over (0 for adapters)
-
-    Returns:
-        entropy: [n_prompts] tensor of entropy values
-    """
-    # Average predictions across ensemble
-    if probs.dim() == 3:
-        mean_probs = probs.mean(dim=dim)  # [n_prompts, vocab_size]
-    else:
-        mean_probs = probs
-
-    # Compute entropy: -sum(p * log(p))
-    entropy = -(mean_probs * torch.log(mean_probs + 1e-10)).sum(dim=-1)
-    return entropy
-
-
-def mutual_information(probs: torch.Tensor) -> torch.Tensor:
-    """
-    Compute mutual information (epistemic uncertainty).
-
-    MI = H[E[p(y|x)]] - E[H[p(y|x)]]
-       = Predictive Entropy - Expected Data Entropy
-
-    High MI indicates model uncertainty (disagreement among adapters).
-
-    Args:
-        probs: [n_adapters, n_prompts, vocab_size]
-
-    Returns:
-        mi: [n_prompts] mutual information values
-    """
-    # Predictive entropy
-    pred_entropy = predictive_entropy(probs, dim=0)
-
-    # Expected data entropy (average entropy of each adapter)
-    data_entropy = -(probs * torch.log(probs + 1e-10)).sum(dim=-1)  # [n_adapters, n_prompts]
-    expected_data_entropy = data_entropy.mean(dim=0)  # [n_prompts]
-
-    mi = pred_entropy - expected_data_entropy
-    return mi
-
-
-def variance_of_predictions(probs: torch.Tensor) -> torch.Tensor:
-    """
-    Compute variance across ensemble predictions.
-
-    Args:
-        probs: [n_adapters, n_prompts, vocab_size]
-
-    Returns:
-        variance: [n_prompts] variance of predicted class probabilities
-    """
-    # Get predicted class for each adapter
-    predicted_probs, _ = probs.max(dim=-1)  # [n_adapters, n_prompts]
-
-    # Variance across adapters
-    variance = predicted_probs.var(dim=0)  # [n_prompts]
-    return variance
-
-
-def expected_calibration_error(
-    probs: torch.Tensor,
-    labels: torch.Tensor,
-    n_bins: int = 10
-) -> float:
-    """
-    Compute Expected Calibration Error (ECE).
-
-    Measures how well predicted confidences match actual accuracy.
-
-    Args:
-        probs: [n_prompts, vocab_size] predicted probabilities
-        labels: [n_prompts] true class labels
-        n_bins: Number of bins for calibration
-
-    Returns:
-        ece: Expected Calibration Error
-    """
-    confidences, predictions = probs.max(dim=-1)
-    accuracies = (predictions == labels).float()
-
-    # Bin by confidence
-    ece = 0.0
-    bin_edges = torch.linspace(0, 1, n_bins + 1)
-
-    for i in range(n_bins):
-        bin_mask = (confidences > bin_edges[i]) & (confidences <= bin_edges[i + 1])
-        if bin_mask.sum() > 0:
-            bin_accuracy = accuracies[bin_mask].mean()
-            bin_confidence = confidences[bin_mask].mean()
-            bin_size = bin_mask.sum().float()
-            ece += (bin_size / len(probs)) * torch.abs(bin_accuracy - bin_confidence)
-
-    return ece.item()
-
-
-def compute_uncertainty_metrics(
-    ensemble_probs: torch.Tensor,
-    labels: Optional[torch.Tensor] = None
-) -> Dict[str, torch.Tensor]:
-    """
-    Compute comprehensive uncertainty metrics for ensemble.
-
-    Args:
-        ensemble_probs: [n_adapters, n_prompts, vocab_size]
-        labels: Optional true labels for calibration metrics
-
-    Returns:
-        metrics: Dictionary with various uncertainty measures
-    """
-    metrics = {
-        "predictive_entropy": predictive_entropy(ensemble_probs),
-        "mutual_information": mutual_information(ensemble_probs),
-        "variance": variance_of_predictions(ensemble_probs),
-    }
-
-    # Mean ensemble prediction
-    mean_probs = ensemble_probs.mean(dim=0)
-    metrics["mean_confidence"] = mean_probs.max(dim=-1)[0]
-
-    # Compute credal set metrics (intersection probability entropy)
-    # Get lower and upper bounds from ensemble
-    lower_probs = ensemble_probs.min(dim=0).values  # [n_prompts, vocab_size]
-    upper_probs = ensemble_probs.max(dim=0).values  # [n_prompts, vocab_size]
-
-    # Compute intersection probability entropy for each prompt
-    intersection_entropies = []
-    for i in range(lower_probs.shape[0]):
-        lower = lower_probs[i].cpu().numpy()
-        upper = upper_probs[i].cpu().numpy()
-        intersection_prob = compute_intersection_probability(upper, lower)
-        intersection_entropy = -(intersection_prob * np.log(intersection_prob + 1e-10)).sum()
-        intersection_entropies.append(intersection_entropy)
-
-    metrics["intersection_probs_entropy"] = torch.tensor(intersection_entropies)
-
-    # Also compute mean entropy (from Bayesian approach)
-    mean_entropy = -(mean_probs * torch.log(mean_probs + 1e-10)).sum(dim=-1)
-    metrics["mean_entropy"] = mean_entropy
-
-    # Calibration if labels provided
-    if labels is not None:
-        metrics["ece"] = expected_calibration_error(mean_probs, labels)
-
-    return metrics
-
-
-def compute_entropy_for_prompts(
+def compute_predictive_entropy(
     ensemble_inference,
     prompts: List[str],
     max_length: int = 256,
-    return_all_metrics: bool = False
-) -> Union[List[float], Dict[str, List[float]]]:
+    metric: Optional[str] = "intersection_probs_entropy",
+) -> Union[List[float], List[Dict[str, float]]]:
     """
     Compute uncertainty metrics for a list of prompts using ensemble.
 
@@ -202,106 +17,28 @@ def compute_entropy_for_prompts(
         ensemble_inference: EnsembleLoRAInference instance
         prompts: List of prompts
         max_length: Max sequence length
-        return_all_metrics: If True, return all uncertainty metrics
+        metric: Specific metric to return, or None for all metrics
+            Options: "predictive_entropy", "mutual_information", "variance",
+                     "mean_confidence", "intersection_probs_entropy", "mean_entropy"
 
     Returns:
-        If return_all_metrics=False: List of predictive entropy values
-        If return_all_metrics=True: Dict with all uncertainty metrics
+        If metric is specified: List of values for that metric
+        If metric is None: List of dicts with all metrics
     """
-    # Get ensemble predictions
+    # Get ensemble predictions for all prompts
     _, all_probs = ensemble_inference.ensemble_predict(
         prompts, max_length=max_length
     )
+    # all_probs: [n_adapters, n_prompts, vocab_size]
 
-    # Compute metrics
-    metrics = compute_uncertainty_metrics(all_probs)
+    # Process each prompt individually
+    all_metrics = []
+    for i in range(len(prompts)):
+        prompt_probs = all_probs[:, i:i+1, :]  # [n_adapters, 1, vocab_size]
+        metrics = compute_uncertainty_metrics(prompt_probs)
+        all_metrics.append(metrics)
 
-    if return_all_metrics:
-        return {k: v.tolist() for k, v in metrics.items() if isinstance(v, torch.Tensor)}
+    if metric is None:
+        return all_metrics
     else:
-        return metrics["predictive_entropy"].tolist()
-
-
-def rank_by_uncertainty(
-    prompts: List[str],
-    uncertainties: List[float],
-    descending: bool = True
-) -> List[tuple]:
-    """
-    Rank prompts by uncertainty scores.
-
-    Args:
-        prompts: List of prompts
-        uncertainties: Corresponding uncertainty values
-        descending: If True, rank highest uncertainty first
-
-    Returns:
-        ranked: List of (prompt, uncertainty, rank) tuples
-    """
-    sorted_indices = np.argsort(uncertainties)
-    if descending:
-        sorted_indices = sorted_indices[::-1]
-
-    ranked = [
-        (prompts[i], uncertainties[i], rank)
-        for rank, i in enumerate(sorted_indices)
-    ]
-    return ranked
-
-
-def detect_ood_by_entropy(
-    in_distribution_prompts: List[str],
-    test_prompts: List[str],
-    ensemble_inference,
-    threshold_percentile: float = 90.0,
-    max_length: int = 256
-) -> Dict:
-    """
-    Detect out-of-distribution samples using predictive entropy.
-
-    Args:
-        in_distribution_prompts: Known in-distribution prompts
-        test_prompts: Test prompts to evaluate
-        ensemble_inference: EnsembleLoRAInference instance
-        threshold_percentile: Percentile of ID entropy to use as threshold
-        max_length: Max sequence length
-
-    Returns:
-        results: Dict with OOD detection results
-    """
-    # Compute entropy for ID data
-    print("Computing entropy for in-distribution data...")
-    id_entropies = compute_entropy_for_prompts(
-        ensemble_inference, in_distribution_prompts, max_length
-    )
-
-    # Set threshold
-    threshold = np.percentile(id_entropies, threshold_percentile)
-
-    # Compute entropy for test data
-    print("Computing entropy for test data...")
-    test_entropies = compute_entropy_for_prompts(
-        ensemble_inference, test_prompts, max_length
-    )
-
-    # Flag OOD
-    ood_flags = [e > threshold for e in test_entropies]
-
-    results = {
-        "id_entropies": id_entropies,
-        "test_entropies": test_entropies,
-        "threshold": threshold,
-        "ood_flags": ood_flags,
-        "n_ood": sum(ood_flags),
-        "ood_rate": sum(ood_flags) / len(ood_flags) if ood_flags else 0.0
-    }
-
-    print(f"\nOOD Detection Results:")
-    print(f"  Threshold (p{threshold_percentile}): {threshold:.4f}")
-    print(f"  Detected OOD: {results['n_ood']}/{len(test_prompts)} ({results['ood_rate']:.1%})")
-
-    return results
-
-
-# Alias for compatibility
-compute_predictive_entropy = compute_entropy_for_prompts
+        return [m[metric] for m in all_metrics]
