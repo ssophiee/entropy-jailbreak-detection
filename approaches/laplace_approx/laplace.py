@@ -89,7 +89,7 @@ def compute_diagonal_fisher(model, laplace_data, device="cuda"):
     # The Fisher matrix represents curvature of the sum of log-likelihoods,
     # so it should scale with the number of data points
     n_batches = len(laplace_data)
-    
+
 
     # Report Fisher statistics
     print("\n" + "="*60)

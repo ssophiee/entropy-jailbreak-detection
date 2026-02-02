@@ -11,12 +11,14 @@ This script:
 
 Usage:
     python compute_entropy.py --model_path saved_models/your_model_name
+    python compute_entropy.py --model_path saved_models/your_model_name --visualize
+    python compute_entropy.py --model_path saved_models/your_model_name --metric mutual_information --visualize
 """
 
 
 import os, sys
 this_dir = os.path.dirname(__file__)           # scripts/
-repo_root = os.path.abspath(os.path.join(this_dir, ".."))
+repo_root = os.path.abspath(os.path.join(this_dir, "..", "..", ".."))
 sys.path.insert(0, repo_root)
 
 
@@ -26,11 +28,14 @@ import torch
 import argparse
 import numpy as np
 from scipy import stats
+from scipy.stats import gaussian_kde
 from datetime import datetime
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 import src.constants as constants
 from src.data_utils import load_training_and_test_data
-from src.uncertainty import compute_predictive_entropy, compute_predictive_credal_sets
+from approaches.laplace_approx.uncertainty import compute_predictive_entropy
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
 
@@ -42,6 +47,65 @@ def load_fisher_matrix(fisher_path):
     fisher_diag = checkpoint['fisher_diag']
     print(f"✓ Loaded Fisher matrix with {len(fisher_diag)} parameters")
     return fisher_diag
+
+
+def plot_metric_distributions(safe_values, adv_values, metric_name, output_dir):
+    """Plot distribution comparison for a metric"""
+    safe_values = np.array(safe_values)
+    adv_values = np.array(adv_values)
+
+    # Set style
+    sns.set_style("whitegrid")
+
+    # Create figure with two subplots
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+    # 1. Histogram with KDE
+    ax1 = axes[0]
+    ax1.hist(safe_values, bins=30, alpha=0.6, label='Safe', color='blue', density=True, edgecolor='black')
+    ax1.hist(adv_values, bins=30, alpha=0.6, label='Adversarial', color='red', density=True, edgecolor='black')
+
+    # Add KDE curves
+    if len(safe_values) > 1:
+        kde_safe = gaussian_kde(safe_values)
+        x_safe = np.linspace(safe_values.min(), safe_values.max(), 100)
+        ax1.plot(x_safe, kde_safe(x_safe), color='blue', linewidth=2, linestyle='--')
+
+    if len(adv_values) > 1:
+        kde_adv = gaussian_kde(adv_values)
+        x_adv = np.linspace(adv_values.min(), adv_values.max(), 100)
+        ax1.plot(x_adv, kde_adv(x_adv), color='red', linewidth=2, linestyle='--')
+
+    ax1.set_xlabel(metric_name.replace('_', ' ').title(), fontsize=12)
+    ax1.set_ylabel('Density', fontsize=12)
+    ax1.set_title(f'Distribution: {metric_name.replace("_", " ").title()}', fontsize=14, fontweight='bold')
+    ax1.legend(fontsize=11)
+    ax1.grid(True, alpha=0.3)
+
+    # 2. Box plot
+    ax2 = axes[1]
+    data_to_plot = [safe_values, adv_values]
+    box = ax2.boxplot(data_to_plot, labels=['Safe', 'Adversarial'], patch_artist=True,
+                      widths=0.6, showmeans=True, meanline=True)
+
+    # Color the boxes
+    colors = ['lightblue', 'lightcoral']
+    for patch, color in zip(box['boxes'], colors):
+        patch.set_facecolor(color)
+        patch.set_alpha(0.7)
+
+    ax2.set_ylabel(metric_name.replace('_', ' ').title(), fontsize=12)
+    ax2.set_title(f'Box Plot: {metric_name.replace("_", " ").title()}', fontsize=14, fontweight='bold')
+    ax2.grid(True, alpha=0.3, axis='y')
+
+    plt.tight_layout()
+
+    # Save figure
+    output_path = os.path.join(output_dir, f'{metric_name}_distribution.png')
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
+
+    print(f"    → Saved plot: {output_path}")
 
 
 def compute_statistics(safe_values, adv_values, metric_name):
@@ -191,43 +255,16 @@ def main(args):
     # Use compute_statistics for cleaner analysis
     stats_results = compute_statistics(safe_entropies, adv_entropies, args.metric)
 
+    # Generate visualizations if requested
+    if args.visualize:
+        plot_metric_distributions(safe_entropies, adv_entropies, args.metric, args.model_path)
+
     # Extract values for results dict
     safe_mean = np.mean(safe_entropies)
     safe_std = np.std(safe_entropies)
     adv_mean = np.mean(adv_entropies)
     adv_std = np.std(adv_entropies)
 
-
-    # Compute credal sets only for intersection_prob_entropy metric
-    safe_credal = None
-    adv_credal = None
-
-    if args.metric == "intersection_prob_entropy":
-        print("\n[++] Computing predictive credal sets for SAFE prompts...")
-        safe_credal = compute_predictive_credal_sets(
-            model=model,
-            prompts=safe_test,
-            tokenizer=tokenizer,
-            fisher_diag=fisher_diag,
-            n_samples=constants.N_POSTERIOR_SAMPLES,
-            temperature=args.temperature,
-            device=constants.DEVICE
-        )
-
-        # Clear cache between computations
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-
-        print("\n[++] Computing predictive credal sets for ADVERSARIAL prompts...")
-        adv_credal = compute_predictive_credal_sets(
-            model=model,
-            prompts=harmful_test,
-            tokenizer=tokenizer,
-            fisher_diag=fisher_diag,
-            n_samples=constants.N_POSTERIOR_SAMPLES,
-            temperature=args.temperature,
-            device=constants.DEVICE
-        )
 
 
 
@@ -245,7 +282,6 @@ def main(args):
             'min_entropy': float(np.min(safe_entropies)),
             'max_entropy': float(np.max(safe_entropies)),
             'entropies': [float(x) for x in safe_entropies],
-            'credal_metrics': safe_credal
         },
         'adversarial_prompts': {
             'n_samples': len(harmful_test),
@@ -253,8 +289,7 @@ def main(args):
             'std_entropy': float(adv_std),
             'min_entropy': float(np.min(adv_entropies)),
             'max_entropy': float(np.max(adv_entropies)),
-            'entropies': [float(x) for x in adv_entropies], 
-            "credal_metrics": adv_credal
+            'entropies': [float(x) for x in adv_entropies],
         },
         'statistical_test': stats_results
     }
@@ -286,9 +321,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--metric",
         type=str,
-        default="mutual_information",
-        choices=["mutual_information", "predictive_variance", "mean_entropy", "intersection_prob_entropy"],
-        help="Uncertainty metric to compute (default: mutual_information)"
+        default="intersection_probs_entropy",
+        choices=["mutual_information", "variance", "mean_entropy", "intersection_probs_entropy", "predictive_entropy"],
+        help="Uncertainty metric to compute (default: intersection_probs_entropy)"
     )
 
     parser.add_argument(
@@ -297,6 +332,11 @@ if __name__ == "__main__":
         default=False,
         choices=[True, False],
         help="Debug Noise During Inference"
+    )
+    parser.add_argument(
+        "--visualize",
+        action="store_true",
+        help="Generate distribution plots for the uncertainty metric"
     )
     args = parser.parse_args()
 
