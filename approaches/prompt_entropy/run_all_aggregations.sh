@@ -38,4 +38,4 @@ for KEY in "${KEYS[@]}"; do
   echo "$KEY,$AUROC,$AUROC_FLIPPED" >> $SUMMARY
 done
 
-echo "Done. Summary saved to $SUMMARY"
+echo "Done. Summary saved to $SUMMARY. This may not have saved successfully. If so, launch the summary.sh script"
