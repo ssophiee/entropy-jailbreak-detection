@@ -19,6 +19,12 @@ KEYS=(
   slope
   frac_above_q
   range
+  delta_end
+  delta_seg
+  spearman_rho
+  total_variation
+  monotonicity_up
+  peak_pos
 )
 
 mkdir -p $OUTDIR

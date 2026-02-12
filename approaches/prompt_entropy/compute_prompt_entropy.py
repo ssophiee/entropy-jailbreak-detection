@@ -5,7 +5,7 @@ import os
 import json
 import argparse
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict
 
 import numpy as np
 import torch
@@ -137,7 +137,7 @@ def main(args: argparse.Namespace) -> None:
 
     metrics = eval_detection(y_true, scores)
 
-    # Optional: also report “best direction” AUROC for analysis convenience
+    # Convenience: show opposite direction too
     metrics["auroc_flipped"] = float(roc_auc_score(y_true, -scores))
 
     print("\n=== Prompt-Reading Entropy Detection Metrics ===")
@@ -205,10 +205,22 @@ if __name__ == "__main__":
     parser.add_argument(
         "--score_key",
         type=str,
-        default="mean",
+        default="slope",
         choices=[
-            "mean", "std", "min", "max", "median", "p10", "p90", "trimmed_mean",
-            "first_mean", "last_mean", "auc", "slope", "frac_above_q", "range"
+            # level
+            "mean", "median", "trimmed_mean", "p10", "p90",
+            # extremes/dispersion
+            "min", "max", "std", "range",
+            # position-aware aggregates
+            "first_mean", "last_mean",
+            # trend / structure
+            "slope", "delta_end", "delta_seg", "spearman_rho",
+            # volatility / dynamics
+            "total_variation", "monotonicity_up",
+            # structure / spikes
+            "frac_above_q", "peak_pos",
+            # legacy
+            "auc",
         ]
     )
 

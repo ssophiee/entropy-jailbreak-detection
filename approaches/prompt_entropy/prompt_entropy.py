@@ -39,14 +39,14 @@ def compute_prompt_entropies(
     max_length: Optional[int] = None,
 ) -> Tuple[List[float], int]:
     """
-    Collect entropy values while "reading" the prompt:
+    Entropy trace while reading the prompt (teacher forcing):
     For each position t (except the last), compute entropy of p(x_{t+1} | x_{<=t}).
 
-    Efficient implementation: single forward pass on full prompt:
-    logits[:, t, :] predicts token at t+1.
+    Single forward pass:
+      logits[:, t, :] predicts token at t+1.
 
     Returns:
-      entropies: list length (n_tokens - 1) typically
+      entropies: list length (n_tokens - 1)
       n_tokens: number of prompt tokens
     """
     model.eval()
@@ -73,11 +73,33 @@ def compute_prompt_entropies(
     logits = out.logits                              # [1, T, V]
 
     # Entropy at position t corresponds to predicting token t+1
-    # so use logits[:, :-1, :]
     H = _entropy_from_logits(logits[:, :-1, :])      # [1, T-1]
     entropies = H.squeeze(0).detach().float().cpu().tolist()
 
     return entropies, T
+
+
+def _spearman_rho_with_position(x: np.ndarray) -> float:
+    """
+    Spearman rank correlation between position t and values x.
+    We implement ranks using argsort twice (ties unlikely for float entropies).
+    """
+    n = x.size
+    if n < 2:
+        return 0.0
+
+    # ranks of x (0..n-1)
+    rx = np.empty(n, dtype=np.float64)
+    rx[np.argsort(x)] = np.arange(n, dtype=np.float64)
+
+    # ranks of t are just t itself (already increasing), but keep symmetric
+    rt = np.arange(n, dtype=np.float64)
+
+    # Pearson correlation of ranks
+    rx = rx - rx.mean()
+    rt = rt - rt.mean()
+    denom = (np.sqrt((rx * rx).mean()) * np.sqrt((rt * rt).mean())) + 1e-12
+    return float((rx * rt).mean() / denom)
 
 
 def aggregate_entropy_features(
@@ -90,19 +112,36 @@ def aggregate_entropy_features(
 ) -> Dict[str, float]:
     """
     Turn a per-token entropy trace into scalar features for classification.
+    Includes:
+      - level (mean/median/quantiles)
+      - volatility (std/range/total_variation)
+      - trend (slope, delta_end, delta_seg, spearman_rho, monotonicity_up)
+      - structure (peak_pos)
     """
+    # Stable keys even for empty traces
+    empty = {
+        "mean": 0.0, "std": 0.0, "min": 0.0, "max": 0.0, "median": 0.0,
+        "p10": 0.0, "p90": 0.0, "trimmed_mean": 0.0,
+        "first_mean": 0.0, "last_mean": 0.0,
+        "auc": 0.0, "slope": 0.0,
+        "frac_above_q": 0.0, "range": 0.0,
+
+        # new trend/structure metrics
+        "delta_end": 0.0,
+        "delta_seg": 0.0,
+        "spearman_rho": 0.0,
+        "total_variation": 0.0,
+        "monotonicity_up": 0.0,
+        "peak_pos": 0.0,
+    }
+
     if len(entropies) == 0:
-        # Keep feature keys stable
-        return {
-            "mean": 0.0, "std": 0.0, "min": 0.0, "max": 0.0, "median": 0.0,
-            "p10": 0.0, "p90": 0.0, "trimmed_mean": 0.0,
-            "first_mean": 0.0, "last_mean": 0.0,
-            "auc": 0.0, "slope": 0.0,
-            "frac_above_q": 0.0, "range": 0.0,
-        }
+        return empty
 
     x = np.asarray(entropies, dtype=np.float64)
     n = x.size
+    if n == 0:
+        return empty
 
     # Basic stats
     mean = float(x.mean())
@@ -128,13 +167,12 @@ def aggregate_entropy_features(
     first_mean = float(x[:first_k].mean())
     last_mean = float(x[-last_k:].mean())
 
-    # AUC-like (sum normalized by length); equivalent to mean but keeps explicit “area”
+    # AUC-like (sum); you can normalize by n if you prefer, but mean already captures that.
     auc = float(x.sum())
 
     # Linear trend (slope) over position index
     if n >= 2:
         t = np.arange(n, dtype=np.float64)
-        # slope = cov(t,x)/var(t)
         slope = float(np.cov(t, x, bias=True)[0, 1] / (t.var() + 1e-12))
     else:
         slope = 0.0
@@ -142,6 +180,34 @@ def aggregate_entropy_features(
     # Spikiness: fraction above a high quantile threshold
     thr = float(np.quantile(x, high_q))
     frac_above = float((x >= thr).mean())
+
+    # -----------------------
+    # NEW: trend/structure
+    # -----------------------
+
+    # Endpoint drift
+    delta_end = float(x[-1] - x[0]) if n >= 2 else 0.0
+
+    # Segment drift (more robust than endpoints)
+    delta_seg = float(last_mean - first_mean)
+
+    # Monotonic trend robustness (rank correlation)
+    spearman_rho = _spearman_rho_with_position(x)
+
+    # Volatility / jaggedness
+    if n >= 2:
+        dx = np.diff(x)
+        total_variation = float(np.abs(dx).sum())
+        up = float(np.maximum(dx, 0.0).sum())
+        denom = float(np.abs(dx).sum()) + 1e-12
+        monotonicity_up = float(up / denom)  # 1 => mostly increasing, 0 => mostly decreasing
+    else:
+        total_variation = 0.0
+        monotonicity_up = 0.0
+
+    # Where the max happens (normalized position in [0,1])
+    peak_idx = int(np.argmax(x))
+    peak_pos = float(peak_idx / (n - 1)) if n >= 2 else 0.0
 
     return {
         "mean": mean,
@@ -158,6 +224,14 @@ def aggregate_entropy_features(
         "slope": slope,
         "frac_above_q": frac_above,
         "range": rng,
+
+        # new
+        "delta_end": delta_end,
+        "delta_seg": delta_seg,
+        "spearman_rho": spearman_rho,
+        "total_variation": total_variation,
+        "monotonicity_up": monotonicity_up,
+        "peak_pos": peak_pos,
     }
 
 
