@@ -205,6 +205,54 @@ class EnsembleLoRAInference:
 
         return aggregated_probs, all_probs
 
+    def predict_all_positions(
+        self,
+        adapter_path: str,
+        prompt: str,
+        max_length: int = 256,
+    ) -> torch.Tensor:
+        """
+        Get logits at ALL token positions for a single prompt using one adapter.
+
+        Returns:
+            logits: [1, T, vocab_size] full sequence logits
+        """
+        model = self.load_adapter(adapter_path)
+
+        with torch.no_grad():
+            inputs = self.tokenizer(
+                prompt,
+                return_tensors="pt",
+                truncation=True,
+                max_length=max_length,
+            ).to(self.device)
+
+            outputs = model(**inputs)
+            logits = outputs.logits.float().cpu()  # [1, T, V]
+
+        del model
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        return logits
+
+    def ensemble_predict_all_positions(
+        self,
+        prompt: str,
+        max_length: int = 256,
+    ) -> torch.Tensor:
+        """
+        Get logits at all token positions from every adapter for a single prompt.
+
+        Returns:
+            all_logits: [n_adapters, T, vocab_size]
+        """
+        all_logits = []
+        for adapter_path in self.adapter_paths:
+            logits = self.predict_all_positions(adapter_path, prompt, max_length)
+            all_logits.append(logits.squeeze(0))  # [T, V]
+        return torch.stack(all_logits, dim=0)  # [n_adapters, T, V]
+
     def generate_ensemble(
         self,
         prompts: Union[str, List[str]],

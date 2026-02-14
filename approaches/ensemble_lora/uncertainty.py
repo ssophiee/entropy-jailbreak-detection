@@ -1,7 +1,12 @@
 """Uncertainty quantification for LoRA ensembles."""
 from typing import List, Union, Dict, Optional
 
+import torch
+import torch.nn.functional as F
+from tqdm import tqdm
+
 from src.uncertainty import compute_uncertainty_metrics
+from approaches.prompt_entropy.prompt_entropy import aggregate_entropy_features
 
 
 def compute_predictive_entropy(
@@ -42,3 +47,61 @@ def compute_predictive_entropy(
         return all_metrics
     else:
         return [m[metric] for m in all_metrics]
+
+
+def compute_entropy_trace_features(
+    ensemble_inference,
+    prompts: List[str],
+    max_length: int = 256,
+) -> List[Dict[str, float]]:
+    """
+    Compute per-position predictive-entropy trace across the ensemble,
+    then aggregate each trace into the same 20 scalar features used
+    by the prompt-entropy approach.
+
+    For each token position t, predictive entropy is:
+        H[E_adapters[p(x_{t+1} | x_{<=t})]]
+
+    This gives a per-position uncertainty trace that is then summarised
+    with: mean, std, min, max, median, p10, p90, trimmed_mean,
+    first_mean, last_mean, auc, slope, frac_above_q, range,
+    delta_end, delta_seg, spearman_rho, total_variation,
+    monotonicity_up, peak_pos.
+
+    Args:
+        ensemble_inference: EnsembleLoRAInference instance
+        prompts: List of prompts
+        max_length: Max sequence length
+
+    Returns:
+        List of dicts (one per prompt), each with the 20 aggregated features.
+    """
+    all_features = []
+
+    for prompt in tqdm(prompts, desc="Entropy trace features"):
+        # all_logits: [n_adapters, T, vocab_size]
+        all_logits = ensemble_inference.ensemble_predict_all_positions(
+            prompt, max_length=max_length
+        )
+
+        T = all_logits.shape[1]
+        if T < 2:
+            all_features.append(aggregate_entropy_features([]))
+            continue
+
+        # Compute predictive entropy at each position t (predicting t+1)
+        # Use logits[:, :-1, :] — position t predicts token t+1
+        logits_pred = all_logits[:, :-1, :]           # [n_adapters, T-1, V]
+        probs = F.softmax(logits_pred, dim=-1)        # [n_adapters, T-1, V]
+
+        # Mean probability across adapters at each position
+        mean_probs = probs.mean(dim=0)                # [T-1, V]
+
+        # Predictive entropy per position: H = -sum(p * log p)
+        H = -(mean_probs * torch.log(mean_probs + 1e-10)).sum(dim=-1)  # [T-1]
+        entropies = H.tolist()
+
+        features = aggregate_entropy_features(entropies)
+        all_features.append(features)
+
+    return all_features
