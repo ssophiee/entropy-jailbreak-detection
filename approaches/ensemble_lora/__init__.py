@@ -55,12 +55,8 @@ from .inference import (
 
 # Uncertainty
 from .uncertainty import (
-    predictive_entropy,
-    mutual_information,
-    variance_of_predictions,
-    expected_calibration_error,
-    compute_uncertainty_metrics,
     compute_predictive_entropy,
+    compute_entropy_trace_features,
 )
 
 __all__ = [
@@ -72,10 +68,6 @@ __all__ = [
     "load_ensemble_from_directory",
     "swap_and_predict",
     # Uncertainty
-    "predictive_entropy",
-    "mutual_information",
-    "variance_of_predictions",
-    "expected_calibration_error",
-    "compute_uncertainty_metrics",
     "compute_predictive_entropy",
+    "compute_entropy_trace_features",
 ]

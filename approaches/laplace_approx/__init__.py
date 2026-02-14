@@ -53,10 +53,8 @@ from .training import (
 
 # Uncertainty
 from .uncertainty import (
-    compute_intersection_probability,
-    compute_uncertainty_metrics,
-    compute_predictive_credal_sets,
     compute_predictive_entropy,
+    compute_entropy_trace_features,
 )
 
 __all__ = [
@@ -68,8 +66,6 @@ __all__ = [
     "train_lora",
     "load_finetuned",
     # Uncertainty
-    "compute_intersection_probability",
-    "compute_uncertainty_metrics",
-    "compute_predictive_credal_sets",
     "compute_predictive_entropy",
+    "compute_entropy_trace_features",
 ]
