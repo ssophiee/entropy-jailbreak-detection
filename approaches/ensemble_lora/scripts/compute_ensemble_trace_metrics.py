@@ -121,10 +121,15 @@ def main(args):
 
     # 1) Load test data
     print("\n[1/4] Loading test data...")
+    n_test = getattr(args, 'n_test', None) or constants.N_TEST_PER_CATEGORY
     data = load_training_and_test_data(
         n_safe_train=constants.N_SAFE_TRAIN,
         n_benign_train=constants.N_BENIGN_TRAIN,
-        n_test_per_category=constants.N_TEST_PER_CATEGORY,
+        n_test_per_category=n_test,
+        safe_dataset=getattr(args, 'safe_dataset', None),
+        harmful_dataset=getattr(args, 'harmful_dataset', None),
+        balance=getattr(args, 'balance', False),
+        balance_seed=getattr(args, 'balance_seed', 42),
     )
     safe_test = data["safe_test"]
     harmful_test = data["harmful_test"]
@@ -228,6 +233,26 @@ if __name__ == "__main__":
     parser.add_argument(
         "--run_all", action="store_true",
         help="Evaluate ALL 20 score keys and print a summary table",
+    )
+    parser.add_argument(
+        "--safe_dataset", type=str, default=None,
+        help="Registry name for safe test prompts (e.g. 'xstest'). Default: ultrachat.",
+    )
+    parser.add_argument(
+        "--harmful_dataset", type=str, default=None,
+        help="Registry name for harmful test prompts (e.g. 'strongreject'). Default: advbench.",
+    )
+    parser.add_argument(
+        "--n_test", type=int, default=None,
+        help="Max prompts per test category (default: constants.N_TEST_PER_CATEGORY).",
+    )
+    parser.add_argument(
+        "--balance", action="store_true",
+        help="Subsample to 1:1 class balance.",
+    )
+    parser.add_argument(
+        "--balance_seed", type=int, default=42,
+        help="Random seed for balanced subsampling (default: 42).",
     )
 
     args = parser.parse_args()
