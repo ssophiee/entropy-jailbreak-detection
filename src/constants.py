@@ -13,7 +13,7 @@ MAX_LENGTH = int(os.getenv("MAX_LENGTH", "512"))
 MAX_LAPLACE_BATCHES = int(os.getenv("MAX_LAPLACE_BATCHES", "40"))
 
 # Model parameters
-MODEL_NAME = "Qwen/Qwen2.5-3B-Instruct"
+MODEL_NAME = "meta-llama/Llama-3.1-8B" # "Qwen/Qwen2.5-3B-Instruct"
 
 # Data parameters
 N_SAFE_TRAIN = 200  # Doubled from 100 for better Fisher information

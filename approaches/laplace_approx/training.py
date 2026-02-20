@@ -1,6 +1,7 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import LoraConfig, get_peft_model, TaskType
 import torch
+import src.constants as constants
 
 def setup_model_and_lora(model_name, device, lora_rank=8):
     """
@@ -31,9 +32,9 @@ def setup_model_and_lora(model_name, device, lora_rank=8):
     # Configure LoRA
     lora_config = LoraConfig(
         r=lora_rank,
-        lora_alpha=16,
+        lora_alpha=constants.LORA_ALPHA,
         target_modules=["q_proj", "v_proj"],
-        lora_dropout=0.1,
+        lora_dropout=constants.LORA_DROPOUT,
         bias="none",
         task_type=TaskType.CAUSAL_LM
     )

@@ -64,10 +64,14 @@ def load_training_and_test_data(
     """
     print("Loading datasets...")
 
-    # Training data (always from the default sources)
-    safe_train = load_safe_prompts(n_safe_train)
-    benign_train = load_benign_prompts(n_benign_train)
-    train_prompts = safe_train + benign_train
+    # Training data — skip when custom test datasets are provided,
+    # since evaluation scripts don't use training data.
+    if safe_dataset is not None or harmful_dataset is not None:
+        train_prompts = []
+    else:
+        safe_train = load_safe_prompts(n_safe_train)
+        benign_train = load_benign_prompts(n_benign_train)
+        train_prompts = safe_train + benign_train
 
     # Test data — use registry if dataset names are provided
     if safe_dataset is not None:
@@ -114,7 +118,7 @@ def load_advbench(n_samples=500):
 def load_strongreject(n_samples=500):
     """walledai/StrongREJECT — 313 prompts across 6 harm categories."""
     ds = load_dataset("walledai/StrongREJECT", split="train", token=True)
-    return [row["forbidden_prompt"] for row in ds][:n_samples]
+    return [row["prompt"] for row in ds][:n_samples]
 
 
 def load_toxic_chat(n_samples=500):
@@ -257,7 +261,11 @@ class PromptDataset(Dataset):
 
     def __getitem__(self, idx):
         prompt = self.prompts[idx]
-        text = f"User: {prompt}\nAssistant: This is a helpful response."
+        messages = [{"role": "user", "content": prompt}]
+        text = self.tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+        text += "This is a helpful response."
 
         encoding = self.tokenizer(
             text,

@@ -1,0 +1,68 @@
+2026-02-19 22:54:42 [INFO] __main__ — ================================================================================
+2026-02-19 22:54:42 [INFO] __main__ — LAPLACE APPROX — ENTROPY TRACE METRICS
+2026-02-19 22:54:42 [INFO] __main__ — ================================================================================
+2026-02-19 22:54:42 [INFO] __main__ — Device          : cuda
+2026-02-19 22:54:42 [INFO] __main__ — Model path      : saved_models/lora_rank16_epochs5_lr_1e_2_2412_epochs3
+2026-02-19 22:54:42 [INFO] __main__ — N samples       : max
+2026-02-19 22:54:42 [INFO] __main__ — Temperature     : 0.05
+2026-02-19 22:54:42 [INFO] __main__ — Score key(s)    : ALL
+2026-02-19 22:54:42 [INFO] __main__ — ================================================================================
+2026-02-19 22:54:42 [INFO] __main__ — [1/5] Loading test data...
+2026-02-19 22:54:42 [INFO] __main__ — Loading all available prompts (n_test=max)
+2026-02-19 22:54:42 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/HuggingFaceH4/ultrachat_200k/resolve/main/README.md "HTTP/1.1 307 Temporary Redirect"
+2026-02-19 22:54:42 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/api/resolve-cache/datasets/HuggingFaceH4/ultrachat_200k/8049631c405ae6576f93f445c6b8166f76f5505a/README.md "HTTP/1.1 200 OK"
+2026-02-19 22:54:43 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/HuggingFaceH4/ultrachat_200k/resolve/8049631c405ae6576f93f445c6b8166f76f5505a/ultrachat_200k.py "HTTP/1.1 404 Not Found"
+2026-02-19 22:54:43 [INFO] httpx — HTTP Request: HEAD https://s3.amazonaws.com/datasets.huggingface.co/datasets/datasets/HuggingFaceH4/ultrachat_200k/HuggingFaceH4/ultrachat_200k.py "HTTP/1.1 404 Not Found"
+2026-02-19 22:54:43 [INFO] httpx — HTTP Request: GET https://huggingface.co/api/datasets/HuggingFaceH4/ultrachat_200k/revision/8049631c405ae6576f93f445c6b8166f76f5505a "HTTP/1.1 200 OK"
+2026-02-19 22:54:43 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/HuggingFaceH4/ultrachat_200k/resolve/8049631c405ae6576f93f445c6b8166f76f5505a/.huggingface.yaml "HTTP/1.1 404 Not Found"
+2026-02-19 22:54:43 [INFO] httpx — HTTP Request: GET https://datasets-server.huggingface.co/info?dataset=HuggingFaceH4/ultrachat_200k "HTTP/1.1 200 OK"
+2026-02-19 22:54:43 [INFO] httpx — HTTP Request: GET https://huggingface.co/api/datasets/HuggingFaceH4/ultrachat_200k/tree/8049631c405ae6576f93f445c6b8166f76f5505a/data?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-02-19 22:54:44 [INFO] httpx — HTTP Request: GET https://huggingface.co/api/datasets/HuggingFaceH4/ultrachat_200k/tree/8049631c405ae6576f93f445c6b8166f76f5505a?recursive=false&expand=false "HTTP/1.1 200 OK"
+2026-02-19 22:54:44 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/HuggingFaceH4/ultrachat_200k/resolve/8049631c405ae6576f93f445c6b8166f76f5505a/dataset_infos.json "HTTP/1.1 404 Not Found"
+2026-02-19 22:54:44 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/databricks/databricks-dolly-15k/resolve/main/README.md "HTTP/1.1 307 Temporary Redirect"
+2026-02-19 22:54:44 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/api/resolve-cache/datasets/databricks/databricks-dolly-15k/bdd27f4d94b9c1f951818a7da7fd7aeea5dbff1a/README.md "HTTP/1.1 200 OK"
+2026-02-19 22:54:44 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/databricks/databricks-dolly-15k/resolve/bdd27f4d94b9c1f951818a7da7fd7aeea5dbff1a/databricks-dolly-15k.py "HTTP/1.1 404 Not Found"
+2026-02-19 22:54:44 [INFO] httpx — HTTP Request: HEAD https://s3.amazonaws.com/datasets.huggingface.co/datasets/datasets/databricks/databricks-dolly-15k/databricks/databricks-dolly-15k.py "HTTP/1.1 404 Not Found"
+2026-02-19 22:54:44 [INFO] httpx — HTTP Request: GET https://huggingface.co/api/datasets/databricks/databricks-dolly-15k/revision/bdd27f4d94b9c1f951818a7da7fd7aeea5dbff1a "HTTP/1.1 200 OK"
+2026-02-19 22:54:45 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/databricks/databricks-dolly-15k/resolve/bdd27f4d94b9c1f951818a7da7fd7aeea5dbff1a/.huggingface.yaml "HTTP/1.1 404 Not Found"
+2026-02-19 22:54:45 [INFO] httpx — HTTP Request: GET https://datasets-server.huggingface.co/info?dataset=databricks/databricks-dolly-15k "HTTP/1.1 200 OK"
+2026-02-19 22:54:45 [INFO] httpx — HTTP Request: GET https://huggingface.co/api/datasets/databricks/databricks-dolly-15k/tree/bdd27f4d94b9c1f951818a7da7fd7aeea5dbff1a/data?recursive=true&expand=false "HTTP/1.1 404 Not Found"
+2026-02-19 22:54:45 [INFO] httpx — HTTP Request: GET https://huggingface.co/api/datasets/databricks/databricks-dolly-15k/tree/bdd27f4d94b9c1f951818a7da7fd7aeea5dbff1a?recursive=false&expand=false "HTTP/1.1 200 OK"
+2026-02-19 22:54:45 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/databricks/databricks-dolly-15k/resolve/bdd27f4d94b9c1f951818a7da7fd7aeea5dbff1a/dataset_infos.json "HTTP/1.1 404 Not Found"
+2026-02-19 22:54:45 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/HuggingFaceH4/ultrachat_200k/resolve/main/README.md "HTTP/1.1 307 Temporary Redirect"
+2026-02-19 22:54:45 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/api/resolve-cache/datasets/HuggingFaceH4/ultrachat_200k/8049631c405ae6576f93f445c6b8166f76f5505a/README.md "HTTP/1.1 200 OK"
+2026-02-19 22:54:45 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/HuggingFaceH4/ultrachat_200k/resolve/8049631c405ae6576f93f445c6b8166f76f5505a/ultrachat_200k.py "HTTP/1.1 404 Not Found"
+2026-02-19 22:54:45 [INFO] httpx — HTTP Request: HEAD https://s3.amazonaws.com/datasets.huggingface.co/datasets/datasets/HuggingFaceH4/ultrachat_200k/HuggingFaceH4/ultrachat_200k.py "HTTP/1.1 404 Not Found"
+2026-02-19 22:54:46 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/HuggingFaceH4/ultrachat_200k/resolve/8049631c405ae6576f93f445c6b8166f76f5505a/.huggingface.yaml "HTTP/1.1 404 Not Found"
+2026-02-19 22:54:46 [INFO] httpx — HTTP Request: GET https://datasets-server.huggingface.co/info?dataset=HuggingFaceH4/ultrachat_200k "HTTP/1.1 200 OK"
+2026-02-19 22:54:46 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/HuggingFaceH4/ultrachat_200k/resolve/8049631c405ae6576f93f445c6b8166f76f5505a/dataset_infos.json "HTTP/1.1 404 Not Found"
+2026-02-19 22:54:49 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/walledai/AdvBench/resolve/main/README.md "HTTP/1.1 200 OK"
+2026-02-19 22:54:49 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/walledai/AdvBench/resolve/9d4730540082fa4017450b65ca1c0e1d8d30446e/AdvBench.py "HTTP/1.1 404 Not Found"
+2026-02-19 22:54:49 [INFO] httpx — HTTP Request: HEAD https://s3.amazonaws.com/datasets.huggingface.co/datasets/datasets/walledai/AdvBench/walledai/AdvBench.py "HTTP/1.1 404 Not Found"
+2026-02-19 22:54:49 [INFO] httpx — HTTP Request: GET https://huggingface.co/api/datasets/walledai/AdvBench/revision/9d4730540082fa4017450b65ca1c0e1d8d30446e "HTTP/1.1 200 OK"
+2026-02-19 22:54:49 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/walledai/AdvBench/resolve/9d4730540082fa4017450b65ca1c0e1d8d30446e/.huggingface.yaml "HTTP/1.1 404 Not Found"
+2026-02-19 22:54:49 [INFO] httpx — HTTP Request: GET https://datasets-server.huggingface.co/info?dataset=walledai/AdvBench "HTTP/1.1 200 OK"
+2026-02-19 22:54:49 [INFO] httpx — HTTP Request: GET https://huggingface.co/api/datasets/walledai/AdvBench/tree/9d4730540082fa4017450b65ca1c0e1d8d30446e/data?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-02-19 22:54:49 [INFO] httpx — HTTP Request: GET https://huggingface.co/api/datasets/walledai/AdvBench/tree/9d4730540082fa4017450b65ca1c0e1d8d30446e?recursive=false&expand=false "HTTP/1.1 200 OK"
+2026-02-19 22:54:50 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/walledai/AdvBench/resolve/9d4730540082fa4017450b65ca1c0e1d8d30446e/dataset_infos.json "HTTP/1.1 404 Not Found"
+2026-02-19 22:54:50 [INFO] __main__ —   Safe: 520  |  Harmful: 520
+2026-02-19 22:54:50 [INFO] __main__ — [2/5] Loading fine-tuned LoRA model...
+2026-02-19 22:54:50 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-3B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-02-19 22:54:50 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-3B-Instruct/aa8e72537993ba99e69dfaafa59ed015b17504d1/config.json "HTTP/1.1 200 OK"
+2026-02-19 22:54:50 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-3B-Instruct/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-02-19 22:54:50 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-3B-Instruct/aa8e72537993ba99e69dfaafa59ed015b17504d1/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-02-19 22:54:50 [INFO] httpx — HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-3B-Instruct/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-02-19 22:54:50 [INFO] httpx — HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-3B-Instruct/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-02-19 22:54:51 [INFO] httpx — HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-3B-Instruct "HTTP/1.1 200 OK"
+2026-02-19 22:54:51 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-3B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-02-19 22:54:51 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-3B-Instruct/aa8e72537993ba99e69dfaafa59ed015b17504d1/config.json "HTTP/1.1 200 OK"
+2026-02-19 22:54:51 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-3B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-02-19 22:54:51 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-3B-Instruct/aa8e72537993ba99e69dfaafa59ed015b17504d1/config.json "HTTP/1.1 200 OK"
+2026-02-19 22:55:01 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-3B-Instruct/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-02-19 22:55:01 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-3B-Instruct/aa8e72537993ba99e69dfaafa59ed015b17504d1/generation_config.json "HTTP/1.1 200 OK"
+2026-02-19 22:55:01 [INFO] __main__ —   Trainable LoRA parameters: 144
+2026-02-19 22:55:01 [INFO] __main__ — [3/5] Loading Fisher information matrix...
+2026-02-19 22:55:01 [INFO] __main__ — Loading Fisher matrix from: saved_models/lora_rank16_epochs5_lr_1e_2_2412_epochs3/fisher_diag.pt
+2026-02-19 22:55:02 [INFO] __main__ —   Loaded Fisher matrix with 144 parameters
+2026-02-19 22:55:02 [INFO] __main__ — [4/5] Computing entropy trace features...
+2026-02-19 22:55:02 [INFO] __main__ —   Processing SAFE prompts...

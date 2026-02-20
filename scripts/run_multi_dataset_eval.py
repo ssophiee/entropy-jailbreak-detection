@@ -13,12 +13,20 @@ Usage:
 """
 import argparse
 import glob
+import logging
 import os
 import subprocess
 import sys
 from itertools import product
 
 import yaml
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+log = logging.getLogger(__name__)
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
@@ -84,8 +92,9 @@ def run_summary_sh(approach, json_path, csv_path):
     """Call summary.sh on a single --run_all JSON to produce a per-pair CSV."""
     script = SUMMARY_SCRIPTS[approach]
     if not os.path.exists(script):
-        print(f"  WARNING: summary script not found at {script}, skipping CSV")
+        log.warning("Summary script not found at %s, skipping CSV", script)
         return
+    log.info("Running summary script: %s -> %s", json_path, csv_path)
     subprocess.run(["bash", script, json_path, csv_path], cwd=REPO_ROOT)
 
 
@@ -115,26 +124,25 @@ def main():
     safe_names = cfg["safe_datasets"]
     pairs = list(product(safe_names, harmful_names))
 
-    # ── Print plan ───────────────────────────────────────────────────────
-    print("=" * 70)
-    print("MULTI-DATASET EVALUATION")
-    print("=" * 70)
-    print(f"Approach       : {approach}")
-    print(f"Model          : {model_cfg['name']}")
-    print(f"Adapter        : {model_cfg['path']} ({model_cfg.get('source', 'local')})")
-    print(f"Samples/dataset: {eval_cfg.get('n_samples_per_dataset', 500)}")
-    print(f"Balance        : 1:1 (seed={eval_cfg.get('balance_seed', 42)})")
-    print(f"Output         : {base_out}")
-    print(f"\nHarmful ({len(harmful_names)}): {harmful_names}")
-    print(f"Safe    ({len(safe_names)}): {safe_names}")
-    print(f"Total pairs: {len(pairs)}")
-    print()
+    # ── Log plan ─────────────────────────────────────────────────────────
+    log.info("=" * 70)
+    log.info("MULTI-DATASET EVALUATION")
+    log.info("=" * 70)
+    log.info("Approach       : %s", approach)
+    log.info("Model          : %s", model_cfg['name'])
+    log.info("Adapter        : %s (%s)", model_cfg['path'], model_cfg.get('source', 'local'))
+    log.info("Samples/dataset: %s", eval_cfg.get('n_samples_per_dataset', 500))
+    log.info("Balance        : 1:1 (seed=%s)", eval_cfg.get('balance_seed', 42))
+    log.info("Output         : %s", base_out)
+    log.info("Harmful (%d): %s", len(harmful_names), harmful_names)
+    log.info("Safe    (%d): %s", len(safe_names), safe_names)
+    log.info("Total pairs: %d", len(pairs))
     for i, (safe, harmful) in enumerate(pairs, 1):
-        print(f"  {i:2d}. {safe} vs {harmful}")
-    print("=" * 70)
+        log.info("  %2d. %s vs %s", i, safe, harmful)
+    log.info("=" * 70)
 
     if args.dry_run:
-        print("\n[DRY RUN] Exiting.")
+        log.info("[DRY RUN] Exiting.")
         return
 
     # ── Run each pair ────────────────────────────────────────────────────
@@ -145,18 +153,18 @@ def main():
         pair_out = os.path.join(base_out, label)
         os.makedirs(pair_out, exist_ok=True)
 
-        print(f"\n{'─' * 70}")
-        print(f"  [{i}/{len(pairs)}] {label}")
-        print(f"{'─' * 70}")
+        log.info("─" * 70)
+        log.info("[%d/%d] %s", i, len(pairs), label)
+        log.info("─" * 70)
 
         cmd = build_command(approach, model_cfg, eval_cfg,
                             safe_name, harmful_name, pair_out)
-        print(f"  CMD: {' '.join(cmd)}\n")
+        log.info("CMD: %s", " ".join(cmd))
 
         result = subprocess.run(cmd, cwd=REPO_ROOT)
 
         if result.returncode != 0:
-            print(f"  WARNING: pair {label} exited with code {result.returncode}")
+            log.warning("Pair %s exited with code %d", label, result.returncode)
             continue
 
         # Generate per-pair CSV via summary.sh
@@ -167,8 +175,8 @@ def main():
 
         completed += 1
 
-    print(f"\nDone. {completed}/{len(pairs)} pairs completed.")
-    print(f"Results in: {base_out}")
+    log.info("Done. %d/%d pairs completed.", completed, len(pairs))
+    log.info("Results in: %s", base_out)
 
 
 if __name__ == "__main__":
