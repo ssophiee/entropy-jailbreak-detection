@@ -1,7 +1,13 @@
+import os
 import random
 from datasets import load_dataset
 from torch.utils.data import Dataset, DataLoader
+from huggingface_hub import login
 
+# Login to HuggingFace
+hf_token = os.environ.get("HUGGINGFACE_TOKEN")
+if hf_token:
+    login(token=hf_token)
 
 # ── Legacy loaders (used by existing scripts) ─────────────────────────────────
 

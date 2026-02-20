@@ -21,9 +21,9 @@ N_BENIGN_TRAIN = 200  # Doubled from 100 for better Fisher information
 N_TEST_PER_CATEGORY = 50
 
 # Training parameters
-BATCH_SIZE = 2
+BATCH_SIZE = 16
 EPOCHS = 5  # Increased from 3 for better convergence
-MAX_LENGTH = 128
+MAX_LENGTH = 512
 LEARNING_RATE = 1e-2 # 1e-2  # Increased from 3e-4 for better Fisher information
 
 # LoRA parameters - CRITICAL FOR MEMORY

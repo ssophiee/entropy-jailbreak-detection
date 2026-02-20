@@ -1,10 +1,13 @@
 """Train multiple LoRA adapters with different random seeds for ensemble."""
+import logging
 import os
 import gc
 import torch
 from peft import LoraConfig, get_peft_model, TaskType
 from transformers import AutoModelForCausalLM
 from tqdm import tqdm
+
+log = logging.getLogger(__name__)
 
 
 def train_lora_ensemble(
@@ -23,9 +26,8 @@ def train_lora_ensemble(
     """
     Train multiple LoRA adapters with different random seeds.
 
-    This creates an ensemble of LoRA adapters on the same base model,
-    each trained with a different initialization seed. This provides
-    diversity for better uncertainty estimation.
+    The base model is loaded once and reused for all adapters.
+    Only LoRA weights and optimizer are reset between adapters.
 
     Args:
         base_model_name: HuggingFace model name (e.g., "Qwen/Qwen2.5-3B-Instruct")
@@ -49,56 +51,59 @@ def train_lora_ensemble(
     os.makedirs(save_dir, exist_ok=True)
     adapter_paths = []
 
-    print(f"\n{'='*60}")
-    print(f"Training Ensemble of {n_adapters} LoRA Adapters")
-    print(f"{'='*60}")
-    print(f"Base Model: {base_model_name}")
-    print(f"LoRA Config: rank={lora_rank}, alpha={lora_alpha}, dropout={lora_dropout}")
-    print(f"Training: {epochs} epochs, lr={lr}")
-    print(f"Save Directory: {save_dir}\n")
+    log.info("=" * 60)
+    log.info("Training Ensemble of %d LoRA Adapters", n_adapters)
+    log.info("=" * 60)
+    log.info("Base Model: %s", base_model_name)
+    log.info("LoRA Config: rank=%d, alpha=%d, dropout=%.2f", lora_rank, lora_alpha, lora_dropout)
+    log.info("Training: %d epochs, lr=%s", epochs, lr)
+    log.info("Save Directory: %s", save_dir)
+
+    # Load base model ONCE and reuse for all adapters
+    log.info("Loading base model (cached for all adapters)...")
+    base_model = AutoModelForCausalLM.from_pretrained(
+        base_model_name,
+        torch_dtype=torch.float16 if device == "cuda" else torch.float32,
+        device_map="auto" if device == "cuda" else None,
+        low_cpu_mem_usage=True,
+        use_safetensors=True,
+    )
+    log.info("Base model loaded")
+
+    lora_config = LoraConfig(
+        r=lora_rank,
+        lora_alpha=lora_alpha,
+        target_modules=["q_proj", "v_proj"],
+        lora_dropout=lora_dropout,
+        bias="none",
+        task_type=TaskType.CAUSAL_LM,
+        init_lora_weights=True,
+    )
 
     for adapter_idx in range(n_adapters):
         seed = base_seed + adapter_idx
-        print(f"\n{'─'*60}")
-        print(f"Training Adapter {adapter_idx + 1}/{n_adapters} (seed={seed})")
-        print(f"{'─'*60}")
+        log.info("-" * 60)
+        log.info("Training Adapter %d/%d (seed=%d)", adapter_idx + 1, n_adapters, seed)
+        log.info("-" * 60)
 
         # Set random seed for reproducibility and diversity
         torch.manual_seed(seed)
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(seed)
 
-        # Load fresh base model
-        print(f"  Loading base model...")
-        base_model = AutoModelForCausalLM.from_pretrained(
-            base_model_name,
-            torch_dtype=torch.float16 if device == "cuda" else torch.float32,
-            device_map="auto" if device == "cuda" else None,
-            low_cpu_mem_usage=True,  # Reduce RAM usage during loading
-            use_safetensors=True,     # Use safer tensor format
-        )
-
-        # Configure LoRA
-        lora_config = LoraConfig(
-            r=lora_rank,
-            lora_alpha=lora_alpha,
-            target_modules=["q_proj", "v_proj"],
-            lora_dropout=lora_dropout,
-            bias="none",
-            task_type=TaskType.CAUSAL_LM,
-            init_lora_weights=True  # Random initialization
-        )
-
-        # Apply LoRA
+        # Apply fresh LoRA on the cached base model
         model = get_peft_model(base_model, lora_config)
         model.to(device)
         model.train()
 
-        if adapter_idx == 0:  # Print only once
-            print(f"  Trainable parameters:")
-            model.print_trainable_parameters()
+        if adapter_idx == 0:
+            trainable, total = 0, 0
+            for p in model.parameters():
+                total += p.numel()
+                if p.requires_grad:
+                    trainable += p.numel()
+            log.info("  Trainable: %d / %d (%.2f%%)", trainable, total, 100 * trainable / total)
 
-        # Train
         optimizer = torch.optim.AdamW(
             [p for p in model.parameters() if p.requires_grad],
             lr=lr
@@ -125,29 +130,33 @@ def train_lora_ensemble(
                 pbar.set_postfix({"loss": f"{loss.item():.4f}"})
 
             avg_loss = epoch_loss / batch_count if batch_count > 0 else 0.0
-            print(f"  Epoch {epoch+1}/{epochs} - Average Loss: {avg_loss:.4f}")
+            log.info("  Epoch %d/%d - Average Loss: %.4f", epoch + 1, epochs, avg_loss)
 
-        # Save adapter
+        # Save adapter (only LoRA weights, not base model)
         adapter_name = f"adapter_{adapter_idx}_seed{seed}"
         adapter_path = os.path.join(save_dir, adapter_name)
         os.makedirs(adapter_path, exist_ok=True)
 
         model.save_pretrained(adapter_path)
         adapter_paths.append(adapter_path)
-        print(f"  ✓ Saved adapter to: {adapter_path}")
+        log.info("  Saved adapter to: %s", adapter_path)
 
-        # Cleanup
-        del model, base_model, optimizer
+        # Cleanup LoRA wrapper + optimizer, keep base_model
+        del model, optimizer
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-            torch.cuda.synchronize()
 
-    print(f"\n{'='*60}")
-    print(f"✓ Ensemble Training Complete!")
-    print(f"{'='*60}")
-    print(f"Trained {n_adapters} adapters")
-    print(f"Adapters saved to: {save_dir}\n")
+    # Cleanup base model after all adapters are done
+    del base_model
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    log.info("=" * 60)
+    log.info("Ensemble Training Complete! Trained %d adapters", n_adapters)
+    log.info("Adapters saved to: %s", save_dir)
+    log.info("=" * 60)
 
     return adapter_paths
 
@@ -228,13 +237,13 @@ def train_single_adapter(
 
             epoch_loss += loss.item()
 
-        print(f"Epoch {epoch+1}/{epochs} - Loss: {epoch_loss / len(train_loader):.4f}")
+        log.info("Epoch %d/%d - Loss: %.4f", epoch + 1, epochs, epoch_loss / len(train_loader))
 
     # Save if path provided
     if save_path:
         os.makedirs(save_path, exist_ok=True)
         model.save_pretrained(save_path)
-        print(f"Saved adapter to: {save_path}")
+        log.info("Saved adapter to: %s", save_path)
         return model, save_path
 
     return model

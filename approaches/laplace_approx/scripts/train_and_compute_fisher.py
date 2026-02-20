@@ -14,11 +14,18 @@ Usage:
     python train_and_compute_fisher.py
 """
 import os, sys
+import logging
 import torch
 import argparse
 from datetime import datetime
 
-this_dir = os.path.dirname(__file__)        
+from huggingface_hub import login
+
+hf_token = os.environ.get("HUGGINGFACE_TOKEN")
+if hf_token:
+    login(token=hf_token)
+
+this_dir = os.path.dirname(__file__)
 repo_root = os.path.abspath(os.path.join(this_dir, ".."))
 sys.path.insert(0, repo_root)
 
@@ -28,41 +35,41 @@ from src.data_utils import load_training_and_test_data, create_dataloader
 from training import setup_model_and_lora, train_lora
 from laplace import collect_laplace_data, compute_diagonal_fisher
 
-
+log = logging.getLogger(__name__)
 
 def main(args):
-    print("="*80)
-    print("TRAINING AND FISHER COMPUTATION SCRIPT")
-    print("="*80)
-    print(f"Device: {constants.DEVICE}")
-    print(f"Model: {constants.MODEL_NAME}")
-    print(f"LoRA Rank: {constants.LORA_RANK}")
-    print(f"Epochs: {constants.EPOCHS}")
-    print(f"Learning Rate: {constants.LEARNING_RATE}")
-    print(f"Batch Size: {constants.BATCH_SIZE}")
-    print(f"Max Length: {constants.MAX_LENGTH}")
-    print(f"Max Laplace Batches: {constants.MAX_LAPLACE_BATCHES}")
-    print("="*80)
+    log.info("=" * 80)
+    log.info("TRAINING AND FISHER COMPUTATION SCRIPT")
+    log.info("=" * 80)
+    log.info("Device:             %s", constants.DEVICE)
+    log.info("Model:              %s", constants.MODEL_NAME)
+    log.info("LoRA Rank:          %s", constants.LORA_RANK)
+    log.info("Epochs:             %s", constants.EPOCHS)
+    log.info("Learning Rate:      %s", constants.LEARNING_RATE)
+    log.info("Batch Size:         %s", constants.BATCH_SIZE)
+    log.info("Max Length:          %s", constants.MAX_LENGTH)
+    log.info("Max Laplace Batches:%s", constants.MAX_LAPLACE_BATCHES)
+    log.info("=" * 80)
 
     # 1. Load training data
-    print("\n[1/6] Loading training data...")
+    log.info("[1/6] Loading training data...")
     data = load_training_and_test_data(
         n_safe_train=constants.N_SAFE_TRAIN,
         n_benign_train=constants.N_BENIGN_TRAIN,
         n_test_per_category=constants.N_TEST_PER_CATEGORY
     )
     train_prompts = data['train_prompts']
-    print(f"Loaded {len(train_prompts)} training prompts")
+    log.info("Loaded %d training prompts", len(train_prompts))
 
 
-    print("\n[2/6] Setting up model with LoRA...")
+    log.info("[2/6] Setting up model with LoRA...")
     model, tokenizer = setup_model_and_lora(
         constants.MODEL_NAME,
         constants.DEVICE,
         lora_rank=constants.LORA_RANK
     )
 
-    print("\n[3/6] Creating DataLoader...")
+    log.info("[3/6] Creating DataLoader...")
     train_loader = create_dataloader(
         train_prompts,
         tokenizer,
@@ -70,9 +77,9 @@ def main(args):
         batch_size=constants.BATCH_SIZE,
         shuffle=True
     )
-    print(f"DataLoader created with {len(train_loader)} batches")
+    log.info("DataLoader created with %d batches", len(train_loader))
 
-    print("\n[4/6] Training LoRA model...")
+    log.info("[4/6] Training LoRA model...")
     model = train_lora(
         model,
         train_loader,
@@ -82,10 +89,10 @@ def main(args):
         save_dir=args.save_dir,
         save_name=args.model_name
     )
-    print("Training complete!")
+    log.info("Training complete!")
 
 
-    print("\n[5/6] Collecting data for Laplace approximation...")
+    log.info("[5/6] Collecting data for Laplace approximation...")
     laplace_data = collect_laplace_data(
         model,
         train_loader,
@@ -95,7 +102,7 @@ def main(args):
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    print("\n[6/6] Computing diagonal Fisher information matrix...")
+    log.info("[6/6] Computing diagonal Fisher information matrix...")
     fisher_diag, lora_params = compute_diagonal_fisher(
         model,
         laplace_data,
@@ -107,19 +114,19 @@ def main(args):
     os.makedirs(save_path, exist_ok=True)
 
     fisher_save_path = os.path.join(save_path, "fisher_diag.pt")
-    print(f"\nSaving Fisher diagonal to: {fisher_save_path}")
+    log.info("Saving Fisher diagonal to: %s", fisher_save_path)
     torch.save({
         'fisher_diag': fisher_diag,
         'lora_param_names': list(lora_params.keys())
     }, fisher_save_path)
 
-    print("\n" + "="*80)
-    print("TRAINING AND FISHER COMPUTATION COMPLETE!")
-    print("="*80)
-    print(f"Model saved to: {save_path}")
-    print(f"Fisher matrix saved to: {fisher_save_path}")
-    print("\nNext step: Run compute_entropy.py to evaluate on test prompts")
-    print("="*80)
+    log.info("=" * 80)
+    log.info("TRAINING AND FISHER COMPUTATION COMPLETE!")
+    log.info("=" * 80)
+    log.info("Model saved to: %s", save_path)
+    log.info("Fisher matrix saved to: %s", fisher_save_path)
+    log.info("Next step: Run compute_entropy.py to evaluate on test prompts")
+    log.info("=" * 80)
 
 
 if __name__ == "__main__":
@@ -136,10 +143,30 @@ if __name__ == "__main__":
         default=None,
         help="Name for the saved model (default: timestamp-based name)"
     )
+    parser.add_argument(
+        "--log_level", type=str, default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Logging verbosity (default: INFO).",
+    )
+    parser.add_argument(
+        "--log_file", type=str, default=None,
+        help="Path to log file (default: <save_dir>/train.log).",
+    )
 
     args = parser.parse_args()
 
-    # Create save directory if it doesn't exist
     os.makedirs(args.save_dir, exist_ok=True)
+    log_file = args.log_file or "logs/train_laplace.log"
+    os.makedirs(os.path.dirname(log_file) or ".", exist_ok=True)
+
+    logging.basicConfig(
+        level=getattr(logging, args.log_level),
+        format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler(log_file),
+        ],
+    )
 
     main(args)
