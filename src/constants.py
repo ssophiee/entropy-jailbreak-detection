@@ -28,7 +28,7 @@ LEARNING_RATE = 1e-2 # 1e-2  # Increased from 3e-4 for better Fisher information
 
 # LoRA parameters - CRITICAL FOR MEMORY
 LORA_RANK = 16  # Increased from 4 to 16 for better capacity (was too small!)
-LORA_ALPHA = 32  # Scale with rank (typically 2x rank)
+LORA_ALPHA = 32 #32  # Scale with rank (typically 2x rank)
 LORA_DROPOUT = 0.1
 
 # Bayesian parameters

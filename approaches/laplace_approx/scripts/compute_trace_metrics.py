@@ -16,6 +16,7 @@ Usage:
     python compute_trace_metrics.py --model_path saved_models/your_model --run_all
 """
 import logging
+import logging
 import os
 import sys
 import argparse
@@ -36,6 +37,9 @@ sys.path.insert(0, repo_root)
 import src.constants as constants
 from src.data_utils import load_training_and_test_data
 from approaches.laplace_approx.uncertainty import compute_entropy_trace_features
+
+
+log = logging.getLogger(__name__)
 
 
 log = logging.getLogger(__name__)
@@ -113,8 +117,10 @@ def eval_detection(y_true, scores):
 
 def load_fisher_matrix(fisher_path):
     log.info("Loading Fisher matrix from: %s", fisher_path)
+    log.info("Loading Fisher matrix from: %s", fisher_path)
     checkpoint = torch.load(fisher_path, map_location=constants.DEVICE)
     fisher_diag = checkpoint["fisher_diag"]
+    log.info("  Loaded Fisher matrix with %d parameters", len(fisher_diag))
     log.info("  Loaded Fisher matrix with %d parameters", len(fisher_diag))
     return fisher_diag
 
@@ -122,12 +128,15 @@ def load_fisher_matrix(fisher_path):
 # ── Main ────────────────────────────────────────────────────────────────
 
 def main(args):
+    # Resolve n_samples
+    n_samples = args.n_samples if args.n_samples is not None else constants.N_POSTERIOR_SAMPLES
+
     log.info("=" * 80)
     log.info("LAPLACE APPROX — ENTROPY TRACE METRICS")
     log.info("=" * 80)
     log.info("Device          : %s", constants.DEVICE)
     log.info("Model path      : %s", args.model_path)
-    log.info("N samples       : %s", constants.N_POSTERIOR_SAMPLES)
+    log.info("N samples       : %d", n_samples)
     log.info("Temperature     : %s", args.temperature)
     log.info("Score key(s)    : %s", "ALL" if args.run_all else args.score_key)
     log.info("=" * 80)
@@ -135,6 +144,15 @@ def main(args):
     os.makedirs(args.output_dir, exist_ok=True)
 
     # 1) Load test data
+    log.info("[1/5] Loading test data...")
+    n_test_arg = getattr(args, 'n_test', None)
+    if n_test_arg == "max":
+        n_test = 999999  # Load all available prompts
+        log.info("Loading all available prompts (n_test=max)")
+    elif n_test_arg is not None:
+        n_test = int(n_test_arg)
+    else:
+        n_test = constants.N_TEST_PER_CATEGORY
     log.info("[1/5] Loading test data...")
     n_test_arg = getattr(args, 'n_test', None)
     if n_test_arg == "max":
@@ -156,8 +174,10 @@ def main(args):
     safe_test = data["safe_test"]
     harmful_test = data["harmful_test"]
     log.info("  Safe: %d  |  Harmful: %d", len(safe_test), len(harmful_test))
+    log.info("  Safe: %d  |  Harmful: %d", len(safe_test), len(harmful_test))
 
     # 2) Load model
+    log.info("[2/5] Loading fine-tuned LoRA model...")
     log.info("[2/5] Loading fine-tuned LoRA model...")
     tokenizer = AutoTokenizer.from_pretrained(constants.MODEL_NAME)
     base_model = AutoModelForCausalLM.from_pretrained(
@@ -179,8 +199,10 @@ def main(args):
     lora_params = [n for n, p in model.named_parameters()
                    if "lora" in n.lower() and p.requires_grad]
     log.info("  Trainable LoRA parameters: %d", len(lora_params))
+    log.info("  Trainable LoRA parameters: %d", len(lora_params))
 
     # 3) Load Fisher matrix
+    log.info("[3/5] Loading Fisher information matrix...")
     log.info("[3/5] Loading Fisher information matrix...")
     fisher_path = os.path.join(args.model_path, "fisher_diag.pt")
     fisher_diag = load_fisher_matrix(fisher_path)
@@ -191,12 +213,14 @@ def main(args):
     # 4) Compute entropy trace features
     log.info("[4/5] Computing entropy trace features...")
     log.info("  Processing SAFE prompts...")
+    log.info("[4/5] Computing entropy trace features...")
+    log.info("  Processing SAFE prompts...")
     safe_features = compute_entropy_trace_features(
         model=model,
         prompts=safe_test,
         tokenizer=tokenizer,
         fisher_diag=fisher_diag,
-        n_samples=constants.N_POSTERIOR_SAMPLES,
+        n_samples=n_samples,
         temperature=args.temperature,
         device=constants.DEVICE,
     )
@@ -205,17 +229,19 @@ def main(args):
         torch.cuda.empty_cache()
 
     log.info("  Processing HARMFUL prompts...")
+    log.info("  Processing HARMFUL prompts...")
     harmful_features = compute_entropy_trace_features(
         model=model,
         prompts=harmful_test,
         tokenizer=tokenizer,
         fisher_diag=fisher_diag,
-        n_samples=constants.N_POSTERIOR_SAMPLES,
+        n_samples=n_samples,
         temperature=args.temperature,
         device=constants.DEVICE,
     )
 
     # 5) Evaluate detection
+    log.info("[5/5] Evaluating detection metrics...")
     log.info("[5/5] Evaluating detection metrics...")
     y_true = np.concatenate([
         np.zeros(len(safe_test), dtype=int),
@@ -234,10 +260,13 @@ def main(args):
         all_results[key] = metrics
 
         log.info("  --- %s ---", key)
+        log.info("  --- %s ---", key)
         for k, v in metrics.items():
             if isinstance(v, float):
                 log.info("    %-20s: %.4f", k, v)
+                log.info("    %-20s: %.4f", k, v)
             else:
+                log.info("    %-20s: %s", k, v)
                 log.info("    %-20s: %s", k, v)
 
     # Save results
@@ -249,7 +278,7 @@ def main(args):
         "timestamp": ts,
         "model_path": args.model_path,
         "base_model": constants.MODEL_NAME,
-        "n_posterior_samples": constants.N_POSTERIOR_SAMPLES,
+        "n_posterior_samples": n_samples,
         "temperature": args.temperature,
         "n_safe_test": len(safe_test),
         "n_harmful_test": len(harmful_test),
@@ -262,14 +291,21 @@ def main(args):
         json.dump(payload, f, indent=2, ensure_ascii=False)
 
     log.info("Saved results to: %s", out_path)
+    log.info("Saved results to: %s", out_path)
 
     # Print summary table if --run_all
     if args.run_all:
         log.info("=" * 80)
         log.info("%-20s %8s %10s %8s %8s", "key", "AUROC", "AUROC_flip", "AP", "TPR@1%")
         log.info("-" * 60)
+        log.info("=" * 80)
+        log.info("%-20s %8s %10s %8s %8s", "key", "AUROC", "AUROC_flip", "AP", "TPR@1%")
+        log.info("-" * 60)
         for key in SCORE_KEYS:
             m = all_results[key]
+            log.info("%-20s %8.4f %10.4f %8.4f %8.4f",
+                     key, m["auroc"], m["auroc_flipped"], m["average_precision"], m["tpr@1%fpr"])
+        log.info("=" * 80)
             log.info("%-20s %8.4f %10.4f %8.4f %8.4f",
                      key, m["auroc"], m["auroc_flipped"], m["average_precision"], m["tpr@1%fpr"])
         log.info("=" * 80)
@@ -286,6 +322,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output_dir", type=str, default="results/laplace_trace",
         help="Directory for output JSON",
+    )
+    parser.add_argument(
+        "--n_samples", type=int, default=None,
+        help="Number of posterior samples (default: constants.N_POSTERIOR_SAMPLES=50)",
     )
     parser.add_argument(
         "--temperature", type=float, default=0.05,
@@ -310,6 +350,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--n_test", type=str, default=None,
         help="Max prompts per test category. Use 'max' to load all available prompts (default: constants.N_TEST_PER_CATEGORY=50).",
+        "--n_test", type=str, default=None,
+        help="Max prompts per test category. Use 'max' to load all available prompts (default: constants.N_TEST_PER_CATEGORY=50).",
     )
     parser.add_argument(
         "--balance", action="store_true",
@@ -328,8 +370,28 @@ if __name__ == "__main__":
         "--log_file", type=str, default=None,
         help="Optional path to write logs to a file in addition to stdout.",
     )
+    parser.add_argument(
+        "--log_level", type=str, default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Logging verbosity (default: INFO).",
+    )
+    parser.add_argument(
+        "--log_file", type=str, default=None,
+        help="Optional path to write logs to a file in addition to stdout.",
+    )
 
     args = parser.parse_args()
+
+    handlers = [logging.StreamHandler(sys.stdout)]
+    if args.log_file:
+        os.makedirs(os.path.dirname(args.log_file) or ".", exist_ok=True)
+        handlers.append(logging.FileHandler(args.log_file))
+    logging.basicConfig(
+        level=getattr(logging, args.log_level),
+        format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        handlers=handlers,
+    )
 
     handlers = [logging.StreamHandler(sys.stdout)]
     if args.log_file:
