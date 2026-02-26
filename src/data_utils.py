@@ -145,6 +145,14 @@ def load_wildjailbreak_harmful(n_samples=500):
                and row.get("adversarial", "") != ""]
     return prompts[:n_samples]
 
+def load_harmbench(n_samples=500):
+    """walledai/HarmBench — adversarial_harmful multi-tactic jailbreaks."""
+    ds = load_dataset(
+        "walledai/HarmBench", 'standard', split="train", token=True
+    )
+    prompts = [row["prompt"] for row in ds]
+    return prompts[:n_samples]
+
 
 # --- Safe / Benign ---
 
@@ -208,6 +216,7 @@ DATASET_REGISTRY = {
     "strongreject":            load_strongreject,
     "toxic_chat":              load_toxic_chat,
     "wildjailbreak_harmful":   load_wildjailbreak_harmful,
+    "harmbench":               load_harmbench,
     # Safe / Benign
     "ultrachat":               load_ultrachat,
     "dolly":                   load_dolly,
@@ -268,9 +277,12 @@ class PromptDataset(Dataset):
     def __getitem__(self, idx):
         prompt = self.prompts[idx]
         messages = [{"role": "user", "content": prompt}]
-        text = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
+        if getattr(self.tokenizer, "chat_template", None):
+            text = self.tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+        else:
+            text = f"User: {prompt}\nAssistant: "
         text += "This is a helpful response."
 
         encoding = self.tokenizer(
@@ -281,10 +293,15 @@ class PromptDataset(Dataset):
             return_tensors="pt"
         )
 
+        input_ids = encoding['input_ids'].squeeze()
+        attention_mask = encoding['attention_mask'].squeeze()
+        labels = input_ids.clone()
+        labels[attention_mask == 0] = -100
+
         return {
-            'input_ids': encoding['input_ids'].squeeze(),
-            'attention_mask': encoding['attention_mask'].squeeze(),
-            'labels': encoding['input_ids'].squeeze()
+            'input_ids': input_ids,
+            'attention_mask': attention_mask,
+            'labels': labels,
         }
 
 def create_dataloader(prompts, tokenizer, max_length=128, batch_size=8, shuffle=True):

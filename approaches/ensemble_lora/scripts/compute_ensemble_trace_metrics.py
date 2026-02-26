@@ -35,16 +35,22 @@ from approaches.ensemble_lora.uncertainty import compute_entropy_trace_features
 
 
 SCORE_KEYS = [
+    # level
     "mean", "std", "min", "max", "median",
     "p10", "p90", "trimmed_mean",
     "first_mean", "last_mean",
-    "auc", "slope",
     "frac_above_q", "range",
-    "delta_end", "delta_seg", "spearman_rho",
-    "total_variation", "monotonicity_up",
-    "peak_pos",
+    # trend
+    "slope", "delta_end", "delta_seg", "spearman_rho",
+    "monotonicity_up", "mean_acceleration", "std_acceleration",
+    # volatility
+    "total_variation", "total_variation_norm", "ac1",
+    # structure
+    "early_third", "mid_third", "late_third",
+    "early_vs_late", "mid_vs_ends",
+    "peak_pos", "peak_density", "mean_peak_height",
+    "frac_above_1std", "frac_below_1std",
 ]
-
 
 # ── Detection helpers (same as prompt_entropy) ──────────────────────────
 
@@ -120,8 +126,30 @@ def main(args):
     os.makedirs(args.output_dir, exist_ok=True)
 
     # 1) Load test data
-    print("\n[1/4] Loading test data...")
-    n_test = getattr(args, 'n_test', None) or constants.N_TEST_PER_CATEGORY
+    # print("\n[1/4] Loading test data...")
+    # n_test = getattr(args, 'n_test', None) or constants.N_TEST_PER_CATEGORY
+    # data = load_training_and_test_data(
+    #     n_safe_train=constants.N_SAFE_TRAIN,
+    #     n_benign_train=constants.N_BENIGN_TRAIN,
+    #     n_test_per_category=n_test,
+    #     safe_dataset=getattr(args, 'safe_dataset', None),
+    #     harmful_dataset=getattr(args, 'harmful_dataset', None),
+    #     balance=getattr(args, 'balance', False),
+    #     balance_seed=getattr(args, 'balance_seed', 42),
+    # )
+    # safe_test = data["safe_test"]
+    # harmful_test = data["harmful_test"]
+    # print(f"  Safe: {len(safe_test)}  |  Harmful: {len(harmful_test)}")
+
+    log.info("[1/5] Loading test data...")
+    n_test_arg = getattr(args, 'n_test', None)
+    if n_test_arg == "max":
+        n_test = 999999  # Load all available prompts
+        log.info("Loading all available prompts (n_test=max)")
+    elif n_test_arg is not None:
+        n_test = int(n_test_arg)
+    else:
+        n_test = constants.N_TEST_PER_CATEGORY
     data = load_training_and_test_data(
         n_safe_train=constants.N_SAFE_TRAIN,
         n_benign_train=constants.N_BENIGN_TRAIN,
@@ -133,7 +161,7 @@ def main(args):
     )
     safe_test = data["safe_test"]
     harmful_test = data["harmful_test"]
-    print(f"  Safe: {len(safe_test)}  |  Harmful: {len(harmful_test)}")
+    log.info("  Safe: %d  |  Harmful: %d", len(safe_test), len(harmful_test))
 
     # 2) Load ensemble
     print(f"\n[2/4] Loading ensemble from {args.ensemble_dir}...")
@@ -243,8 +271,8 @@ if __name__ == "__main__":
         help="Registry name for harmful test prompts (e.g. 'strongreject'). Default: advbench.",
     )
     parser.add_argument(
-        "--n_test", type=int, default=None,
-        help="Max prompts per test category (default: constants.N_TEST_PER_CATEGORY).",
+        "--n_test", type=str, default=None,
+        help="Max prompts per test category. Use 'max' to load all available prompts (default: constants.N_TEST_PER_CATEGORY=50).",
     )
     parser.add_argument(
         "--balance", action="store_true",
@@ -254,7 +282,15 @@ if __name__ == "__main__":
         "--balance_seed", type=int, default=42,
         help="Random seed for balanced subsampling (default: 42).",
     )
-
+    parser.add_argument(
+        "--log_level", type=str, default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Logging verbosity (default: INFO).",
+    )
+    parser.add_argument(
+        "--log_file", type=str, default=None,
+        help="Optional path to write logs to a file in addition to stdout.",
+    )
     args = parser.parse_args()
 
     if not os.path.exists(args.ensemble_dir):

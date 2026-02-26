@@ -15,6 +15,11 @@ from datetime import datetime
 
 import torch
 from transformers import AutoTokenizer
+from huggingface_hub import login
+
+hf_token = os.environ.get("HUGGINGFACE_TOKEN")
+if hf_token:
+    login(token=hf_token)
 
 # Add repo root to path
 this_dir = os.path.dirname(__file__)

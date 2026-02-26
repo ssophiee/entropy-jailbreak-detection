@@ -26,8 +26,10 @@ if hf_token:
     login(token=hf_token)
 
 this_dir = os.path.dirname(__file__)
-repo_root = os.path.abspath(os.path.join(this_dir, ".."))
+parent_dir = os.path.abspath(os.path.join(this_dir, ".."))
+repo_root = os.path.abspath(os.path.join(this_dir, "..", "..", ".."))
 sys.path.insert(0, repo_root)
+sys.path.insert(0, parent_dir)
 
 
 import src.constants as constants

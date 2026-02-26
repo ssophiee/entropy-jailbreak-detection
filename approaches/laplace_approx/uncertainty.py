@@ -3,11 +3,48 @@ from typing import List, Union, Dict, Optional
 from torch.nn import functional as F
 import torch
 from tqdm import tqdm
+from dataclasses import dataclass
+
 
 from src.constants import MAX_LENGTH, PRIOR_PRECISION
 from src.uncertainty import compute_uncertainty_metrics
-from approaches.prompt_entropy.prompt_entropy import aggregate_entropy_features
+from approaches.prompt_entropy.prompt_entropy import aggregate_entropy_features, _entropy_from_logits
 
+
+# =========== intermediate layer entropy (helper functions) ==============
+
+def get_model_components(model):
+    """
+    Returns (final_norm, lm_head, layers_to_probe, n_layers)
+    for any HuggingFace decoder-only model.
+    """
+    inner = getattr(model, "model", model)
+
+    final_norm = None
+    for attr in ["norm", "ln_f", "final_layernorm", "layer_norm"]:
+        if hasattr(inner, attr):
+            final_norm = getattr(inner, attr)
+            break
+    if final_norm is None:
+        raise ValueError("Can't find final norm. Print model and inspect manually.")
+
+    return final_norm, model.lm_head
+
+
+def get_layers_to_probe(model, n_probe: int = 8) -> List[int]:
+    """Evenly spaced layer indices, always including first and last."""
+    n_layers = None
+    for attr in ["num_hidden_layers", "n_layer", "num_layers", "n_layers"]:
+        if hasattr(model.config, attr):
+            n_layers = getattr(model.config, attr)
+            break
+    if n_layers is None:
+        raise ValueError(f"Can't determine n_layers from config: {model.config}")
+
+    indices = np.linspace(0, n_layers - 1, n_probe, dtype=int).tolist()
+    return sorted(set(indices)), n_layers
+
+# ========================================================
 
 def compute_predictive_entropy(
     model,
@@ -97,8 +134,8 @@ def compute_predictive_entropy(
         metrics = compute_uncertainty_metrics(all_probs)
         all_metrics.append(metrics)
 
-        # Periodic cleanup
-        if len(all_metrics) % 10 == 0 and torch.cuda.is_available():
+        del inputs, logit_samples, all_logits, all_probs
+        if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
     if metric is None:
@@ -162,8 +199,8 @@ def compute_entropy_trace_features(
             all_features.append(aggregate_entropy_features([]))
             continue
 
-        # Collect full-sequence logits from each posterior sample
-        logit_samples = []  # will be [n_samples, T, V]
+        # Accumulate probability sum in-place — avoids storing [n_samples, T, V]
+        prob_sum = torch.zeros(T - 1, model.config.vocab_size, dtype=torch.float32)
 
         with torch.no_grad():
             for _ in range(n_samples):
@@ -177,21 +214,16 @@ def compute_entropy_trace_features(
 
                 # Forward pass — keep ALL positions
                 outputs = model(**inputs)
-                logit_samples.append(outputs.logits.squeeze(0).cpu())  # [T, V]
+                logits = outputs.logits.squeeze(0)[:-1, :].float().cpu()  # [T-1, V]
+                prob_sum.add_(F.softmax(logits, dim=-1))
+                del outputs, logits
 
                 # Restore original parameters
                 for name, param in lora_params.items():
                     param.data = original_state[name]
 
-        # Stack: [n_samples, T, V]
-        all_logits = torch.stack(logit_samples, dim=0)
-
-        # Positions predicting next token: [:, :-1, :]
-        logits_pred = all_logits[:, :-1, :]            # [n_samples, T-1, V]
-        probs = F.softmax(logits_pred, dim=-1)         # [n_samples, T-1, V]
-
         # Mean probability across posterior samples at each position
-        mean_probs = probs.mean(dim=0)                 # [T-1, V]
+        mean_probs = prob_sum / n_samples              # [T-1, V]
 
         # Predictive entropy per position
         H = -(mean_probs * torch.log(mean_probs + 1e-10)).sum(dim=-1)  # [T-1]
@@ -200,8 +232,183 @@ def compute_entropy_trace_features(
         features = aggregate_entropy_features(entropies)
         all_features.append(features)
 
-        # Periodic cleanup
-        if len(all_features) % 10 == 0 and torch.cuda.is_available():
+        del inputs, prob_sum, mean_probs, H
+        if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
     return all_features
+
+
+# =========== intermediate layer entropy ==============
+
+@dataclass
+class IntermediateEntropyResult:
+    prompt: str
+    n_tokens: int
+    layers_probed: List[int]
+    H: List[List[float]]          # [n_layers, T-1] as nested list
+    features: Dict[str, float]
+
+
+def aggregate_layer_entropy_surface(
+    H: np.ndarray,              # [n_layers, T-1]
+    layers_to_probe: List[int],
+) -> Dict[str, float]:
+    """
+    Aggregate [n_layers, T-1] entropy surface into scalar features.
+
+    Three views:
+    1. per_layer_*   : all 30 existing metrics applied to each layer's position trace
+    2. depth_*       : all 30 existing metrics applied to the layer-mean profile
+    3. depth_spread_*: all 30 existing metrics applied to the layer-std profile
+    """
+    features = {}
+    n_layers, T = H.shape
+
+    if T == 0:
+        return {}
+
+    # ── View 1: full metrics on each layer's position trace ───────────────
+    # This gives you mean/std/slope/total_variation_norm/etc. per layer
+    # Prefix: L{actual_layer_index}_{metric}
+    for i, layer_idx in enumerate(layers_to_probe):
+        layer_feats = aggregate_entropy_features(H[i].tolist())
+        for k, v in layer_feats.items():
+            features[f"L{layer_idx}_{k}"] = v
+
+    # ── View 2: full metrics on the layer-mean depth profile ─────────────
+    # Treats [n_layers] mean-entropy-per-layer as a 1D trace
+    # slope here = how steeply entropy decays with depth
+    layer_mean = H.mean(axis=1)   # [n_layers]
+    for k, v in aggregate_entropy_features(layer_mean.tolist()).items():
+        features[f"depth_{k}"] = v
+
+    # ── View 3: full metrics on the layer-std depth profile ──────────────
+    # How does the spread of entropy across positions evolve with depth?
+    layer_std = H.std(axis=1)     # [n_layers]
+    for k, v in aggregate_entropy_features(layer_std.tolist()).items():
+        features[f"depth_spread_{k}"] = v
+
+    return features
+
+@torch.no_grad()
+def compute_intermediate_layer_entropies(
+    model,
+    tokenizer,
+    prompt: str,
+    final_norm,
+    lm_head,
+    layers_to_probe: List[int],
+    device: Optional[torch.device] = None,
+    max_length: Optional[int] = None,
+) -> Tuple[np.ndarray, int]:
+    """
+    Compute entropy at each intermediate layer by projecting hidden states
+    through the final norm + lm_head.
+
+    Returns:
+        H: np.ndarray [n_layers_probed, T-1]
+        T: number of prompt tokens
+    """
+    model.eval()
+    if device is None:
+        device = next(model.parameters()).device
+
+    tok = tokenizer(
+        prompt,
+        return_tensors="pt",
+        truncation=True,
+        max_length=max_length,
+        add_special_tokens=True,
+    )
+    input_ids = tok["input_ids"].to(device)
+    attention_mask = tok.get("attention_mask", None)
+    if attention_mask is not None:
+        attention_mask = attention_mask.to(device)
+
+    T = int(input_ids.shape[1])
+    if T < 2:
+        return np.zeros((len(layers_to_probe), 0)), T
+
+    outputs = model(
+        input_ids=input_ids,
+        attention_mask=attention_mask,
+        output_hidden_states=True,
+    )
+
+    # hidden_states: tuple of (n_layers+1) tensors, each [1, T, d_model]
+    # index 0 = embedding, index k = after transformer layer k-1
+    hidden_states = outputs.hidden_states
+
+    H = np.zeros((len(layers_to_probe), T - 1), dtype=np.float32)
+
+    for i, layer_idx in enumerate(layers_to_probe):
+        # layer_idx is 0-based transformer layer → hidden_states index is layer_idx+1
+        h = hidden_states[layer_idx + 1].squeeze(0)[:-1, :]  # [T-1, d_model]
+
+        # Apply final norm (approximation — see note in docstring)
+        h_normed = final_norm(h)                              # [T-1, d_model]
+
+        # Project to vocab space
+        logits = lm_head(h_normed).float()                   # [T-1, vocab_size]
+
+        # Entropy
+        H[i] = _entropy_from_logits(logits).cpu().numpy()
+
+        del h, h_normed, logits
+
+    del outputs, hidden_states
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    return H, T
+
+
+@torch.no_grad()
+def compute_intermediate_entropy_features(
+    model,
+    tokenizer,
+    prompts: List[str],
+    *,
+    n_probe: int = 8,
+    device: Optional[torch.device] = None,
+    max_length: Optional[int] = None,
+    return_surfaces: bool = False,
+) -> List[IntermediateEntropyResult]:
+    """
+    Compute intermediate layer entropy features for each prompt.
+    Model-agnostic: derives layers, norm, and lm_head automatically.
+    """
+    if device is None:
+        device = next(model.parameters()).device
+
+    final_norm, lm_head = get_model_components(model)
+    layers_to_probe, _  = get_layers_to_probe(model, n_probe=n_probe)
+
+    results = []
+    for p in prompts:
+        H, T = compute_intermediate_layer_entropies(
+            model=model,
+            tokenizer=tokenizer,
+            prompt=p,
+            final_norm=final_norm,
+            lm_head=lm_head,
+            layers_to_probe=layers_to_probe,
+            device=device,
+            max_length=max_length,
+        )
+
+        if T < 2 or H.shape[1] == 0:
+            feats = {}
+        else:
+            feats = aggregate_layer_entropy_surface(H, layers_to_probe)
+
+        results.append(IntermediateEntropyResult(
+            prompt=p,
+            n_tokens=T,
+            layers_probed=layers_to_probe,
+            H=H.tolist() if return_surfaces else [],
+            features=feats,
+        ))
+
+    return results

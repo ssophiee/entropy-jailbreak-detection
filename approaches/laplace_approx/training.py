@@ -25,7 +25,7 @@ def setup_model_and_lora(model_name, device, lora_rank=8):
     # Load base model
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        torch_dtype=torch.float16 if device.type == "cuda" else torch.float32,
+        dtype=torch.float16 if device.type == "cuda" else torch.float32,
         device_map="auto" if device == "cuda" else None,
     )
 
@@ -39,6 +39,9 @@ def setup_model_and_lora(model_name, device, lora_rank=8):
         task_type=TaskType.CAUSAL_LM
     )
 
+    # Enable gradient checkpointing to reduce activation memory
+    model.gradient_checkpointing_enable()
+
     # Apply LoRA
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
@@ -46,7 +49,7 @@ def setup_model_and_lora(model_name, device, lora_rank=8):
     return model, tokenizer
 
 
-def train_lora(model, train_loader, epochs=1, lr=3e-4, device=None, save_dir=None, save_name=None):
+def train_lora(model, train_loader, epochs=1, lr=3e-4, device=None, save_dir=None, save_name=None, gradient_accumulation_steps=4):
     """
     Train a LoRA-adapted model on provided DataLoader and save the adapter checkpoints.
 
@@ -86,19 +89,22 @@ def train_lora(model, train_loader, epochs=1, lr=3e-4, device=None, save_dir=Non
     for epoch in range(epochs):
         epoch_loss = 0.0
         batch_count = 0
-        for batch in train_loader:
+        optimizer.zero_grad()
+        for step, batch in enumerate(train_loader):
             # Move batch tensors to device
             batch = {k: v.to(device) for k, v in batch.items()}
 
             outputs = model(**batch)
             # Huggingface CausalLM returns loss when labels provided
             loss = outputs.loss if hasattr(outputs, "loss") else outputs[0]
+            loss = loss / gradient_accumulation_steps
             loss.backward()
 
-            optimizer.step()
-            optimizer.zero_grad()
+            if (step + 1) % gradient_accumulation_steps == 0 or (step + 1) == len(train_loader):
+                optimizer.step()
+                optimizer.zero_grad()
 
-            epoch_loss += loss.item() if isinstance(loss, torch.Tensor) else float(loss)
+            epoch_loss += loss.item() * gradient_accumulation_steps
             batch_count += 1
 
         avg_loss = epoch_loss / batch_count if batch_count > 0 else 0.0

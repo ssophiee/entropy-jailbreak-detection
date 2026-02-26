@@ -20,3 +20,6 @@ example_bayesian_lora_kfac[remove].py
 __pycache__/*
 *.pyc
 results/semantic_entropy/gpt2_sanity/*
+
+/logs/*
+*.log

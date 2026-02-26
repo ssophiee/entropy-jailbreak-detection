@@ -18,13 +18,13 @@ MODEL_NAME = "meta-llama/Llama-3.1-8B" # "Qwen/Qwen2.5-3B-Instruct"
 # Data parameters
 N_SAFE_TRAIN = 200  # Doubled from 100 for better Fisher information
 N_BENIGN_TRAIN = 200  # Doubled from 100 for better Fisher information
-N_TEST_PER_CATEGORY = 50
+N_TEST_PER_CATEGORY = 9999
 
 # Training parameters
-BATCH_SIZE = 16
+BATCH_SIZE = 4  # Micro-batch size (effective batch = BATCH_SIZE * gradient_accumulation_steps)
 EPOCHS = 5  # Increased from 3 for better convergence
 MAX_LENGTH = 512
-LEARNING_RATE = 1e-2 # 1e-2  # Increased from 3e-4 for better Fisher information
+LEARNING_RATE = 2e-4 # 1e-2 # 1e-2  # Increased from 3e-4 for better Fisher information
 
 # LoRA parameters - CRITICAL FOR MEMORY
 LORA_RANK = 16  # Increased from 4 to 16 for better capacity (was too small!)

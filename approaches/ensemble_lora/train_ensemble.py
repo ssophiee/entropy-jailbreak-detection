@@ -21,7 +21,8 @@ def train_lora_ensemble(
     lora_dropout=0.1,
     device="cuda",
     save_dir=None,
-    base_seed=42
+    base_seed=42,
+    gradient_accumulation_steps=4,
 ):
     """
     Train multiple LoRA adapters with different random seeds.
@@ -63,12 +64,13 @@ def train_lora_ensemble(
     log.info("Loading base model (cached for all adapters)...")
     base_model = AutoModelForCausalLM.from_pretrained(
         base_model_name,
-        torch_dtype=torch.float16 if device == "cuda" else torch.float32,
+        dtype=torch.float16 if device == "cuda" else torch.float32,
         device_map="auto" if device == "cuda" else None,
         low_cpu_mem_usage=True,
         use_safetensors=True,
     )
-    log.info("Base model loaded")
+    base_model.gradient_checkpointing_enable()
+    log.info("Base model loaded (gradient checkpointing enabled)")
 
     lora_config = LoraConfig(
         r=lora_rank,
@@ -113,21 +115,23 @@ def train_lora_ensemble(
             epoch_loss = 0.0
             batch_count = 0
 
+            optimizer.zero_grad()
             pbar = tqdm(train_loader, desc=f"  Epoch {epoch+1}/{epochs}")
-            for batch in pbar:
+            for step, batch in enumerate(pbar):
                 batch = {k: v.to(device) for k, v in batch.items()}
 
                 outputs = model(**batch)
-                loss = outputs.loss
+                loss = outputs.loss / gradient_accumulation_steps
                 loss.backward()
 
-                optimizer.step()
-                optimizer.zero_grad()
+                if (step + 1) % gradient_accumulation_steps == 0 or (step + 1) == len(train_loader):
+                    optimizer.step()
+                    optimizer.zero_grad()
 
-                epoch_loss += loss.item()
+                epoch_loss += loss.item() * gradient_accumulation_steps
                 batch_count += 1
 
-                pbar.set_postfix({"loss": f"{loss.item():.4f}"})
+                pbar.set_postfix({"loss": f"{loss.item() * gradient_accumulation_steps:.4f}"})
 
             avg_loss = epoch_loss / batch_count if batch_count > 0 else 0.0
             log.info("  Epoch %d/%d - Average Loss: %.4f", epoch + 1, epochs, avg_loss)
@@ -199,9 +203,10 @@ def train_single_adapter(
     # Load model
     base_model = AutoModelForCausalLM.from_pretrained(
         base_model_name,
-        torch_dtype=torch.float16 if device == "cuda" else torch.float32,
+        dtype=torch.float16 if device == "cuda" else torch.float32,
         device_map="auto" if device == "cuda" else None,
     )
+    base_model.gradient_checkpointing_enable()
 
     # Configure and apply LoRA
     lora_config = LoraConfig(
@@ -218,6 +223,7 @@ def train_single_adapter(
     model.train()
 
     # Train
+    gradient_accumulation_steps = 4
     optimizer = torch.optim.AdamW(
         [p for p in model.parameters() if p.requires_grad],
         lr=lr
@@ -225,17 +231,19 @@ def train_single_adapter(
 
     for epoch in range(epochs):
         epoch_loss = 0.0
-        for batch in train_loader:
+        optimizer.zero_grad()
+        for step, batch in enumerate(train_loader):
             batch = {k: v.to(device) for k, v in batch.items()}
 
             outputs = model(**batch)
-            loss = outputs.loss
+            loss = outputs.loss / gradient_accumulation_steps
             loss.backward()
 
-            optimizer.step()
-            optimizer.zero_grad()
+            if (step + 1) % gradient_accumulation_steps == 0 or (step + 1) == len(train_loader):
+                optimizer.step()
+                optimizer.zero_grad()
 
-            epoch_loss += loss.item()
+            epoch_loss += loss.item() * gradient_accumulation_steps
 
         log.info("Epoch %d/%d - Loss: %.4f", epoch + 1, epochs, epoch_loss / len(train_loader))
 
