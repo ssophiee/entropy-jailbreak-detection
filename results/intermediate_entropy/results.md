@@ -1,6 +1,6 @@
 # L22 Metrics — AUROC vs AUROC Flipped
 
-**Model:** `meta-llama/Llama-3.1-8B` · No classifier · No fine-tuning
+**Model:** `meta-llama/Llama-3.1-8B` - No fine-tuning
 
 ---
 
@@ -10,7 +10,7 @@
 
 Static statistics — `mean`, `median`, quantiles — consistently fail to separate harmful from safe prompts. The signal lives in *dynamics*: metrics that capture how entropy drifts, oscillates, or accelerates across the prompt. This mirrors the finding at the final output layer where `slope` (AUROC ≈ 0.80) and `delta_seg` (AUROC ≈ 0.83) substantially outperform central-tendency measures, with the interpretation that adversarial prompts induce a progressive, structured change in model confidence as tokens unfold — not uniformly high or low uncertainty.
 
-**However, this dynamic signal did not hold reliably at the final layer.** The Laplace approximation approach (entropy traces from the fine-tuned output layer) collapsed out-of-distribution — XSTest+AdvBench dropped to AUROC 0.64 despite strong in-distribution performance. The dynamic signature generalises only when read from **intermediate layers of the base model**, where no fine-tuning calibration is required. At layer 22 (~70% depth), `total_variation` and `monotonicity_up` achieve AUROC 0.91–1.00 across WildJailbreak and UltraChat safe baselines — without any trained classifier or threshold tuning.
+**However, this dynamic signal did not hold reliably at the final layer.** The Laplace approximation approach (entropy traces from the fine-tuned output layer) collapsed out-of-distribution — XSTest+AdvBench dropped to AUROC 0.64 despite strong in-distribution performance. The dynamic signature generalises only when read from **intermediate layers of the base model**, where no fine-tuning calibration is required. At layer 22 (~70% depth), `monotonicity_up` achieves AUROC 0.91–1.00 across WildJailbreak and UltraChat safe baselines — without any trained classifier or threshold tuning.
 
 ---
 
@@ -118,36 +118,36 @@ Layer 22 sits at approximately **69% of model depth** in Llama-3.1-8B (32 layers
 
 ### AUROC Flipped — safe prompts score higher (invert threshold)
 
-| Safe Dataset | Harmful Dataset | L22_monotonicity_up | L22_total_variation |
-|---|---|---|---|
-| WildJailbreak | AdvBench | **0.9995** | **1.0000** |
-| WildJailbreak | HarmBench | **0.9958** | **1.0000** |
-| WildJailbreak | StrongReject | **0.9371** | **0.9945** |
-| UltraChat | AdvBench | **0.9724** | **0.9228** |
-| UltraChat | HarmBench | **0.9562** | **0.9102** |
-| UltraChat | StrongReject | **0.7904** | **0.7998** |
-| JailbreakBench | AdvBench | 0.5648 | 0.4725 |
-| JailbreakBench | HarmBench | 0.4198 | 0.3568 |
-| JailbreakBench | StrongReject | 0.0908 | 0.1232 |
+| Safe Dataset | Harmful Dataset | L22_monotonicity_up |
+|---|---|---|
+| WildJailbreak | AdvBench | **0.9995** |
+| WildJailbreak | HarmBench | **0.9958** |
+| WildJailbreak | StrongReject | **0.9371** |
+| UltraChat | AdvBench | **0.9724** |
+| UltraChat | HarmBench | **0.9562** |
+| UltraChat | StrongReject | **0.7904** |
+| JailbreakBench | AdvBench | 0.5648 |
+| JailbreakBench | HarmBench | 0.4198 |
+| JailbreakBench | StrongReject | 0.0908 |
 
 ### AUROC (raw) — harmful scores higher
 
-| Safe Dataset | Harmful Dataset | L22_monotonicity_up | L22_total_variation |
-|---|---|---|---|
-| WildJailbreak | AdvBench | 0.0005 | 0.0000 |
-| WildJailbreak | HarmBench | 0.0042 | 0.0000 |
-| WildJailbreak | StrongReject | 0.0629 | 0.0055 |
-| UltraChat | AdvBench | 0.0276 | 0.0772 |
-| UltraChat | HarmBench | 0.0438 | 0.0898 |
-| UltraChat | StrongReject | 0.2096 | 0.2002 |
-| JailbreakBench | AdvBench | 0.4352 | 0.5275 |
-| JailbreakBench | HarmBench | 0.5802 | 0.6432 |
-| JailbreakBench | StrongReject | **0.9092** | **0.8768** |
+| Safe Dataset | Harmful Dataset | L22_monotonicity_up |
+|---|---|---|
+| WildJailbreak | AdvBench | 0.0005 |
+| WildJailbreak | HarmBench | 0.0042 |
+| WildJailbreak | StrongReject | 0.0629 |
+| UltraChat | AdvBench | 0.0276 |
+| UltraChat | HarmBench | 0.0438 |
+| UltraChat | StrongReject | 0.2096 |
+| JailbreakBench | AdvBench | 0.4352 |
+| JailbreakBench | HarmBench | 0.5802 |
+| JailbreakBench | StrongReject | **0.9092** |
 
 ---
 
 ## Key Observations
 
-- **WildJailbreak + UltraChat** as safe baseline: signal lives entirely in AUROC Flipped — safe prompts have *higher* L22 entropy volatility and more monotonically rising entropy than harmful ones. Detectable against AdvBench, HarmBench, and StrongReject. Fails against ToxicChat.
+- **WildJailbreak + UltraChat** as safe baseline: signal lives entirely in AUROC Flipped — safe prompts have more monotonically rising entropy at L22 than harmful ones. Detectable against AdvBench, HarmBench, and StrongReject. Fails against ToxicChat.
 - **JailbreakBench** as safe baseline: signal flips to raw AUROC — harmful prompts score *higher*. Detectable against StrongReject and ToxicChat. Fails against AdvBench and HarmBench.
 - The direction flip between safe datasets means a **fixed threshold is not portable** across safe baselines without knowing which direction applies — a key limitation for deployment.
