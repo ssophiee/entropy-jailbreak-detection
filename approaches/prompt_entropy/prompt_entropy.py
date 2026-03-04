@@ -449,7 +449,7 @@ def compute_prompt_entropy_features(
     return results
 
 
-# ============== interm. layer entropy =========
+# ============== interm. layer entropy (logit lens: https://arxiv.org/pdf/2303.08112, https://www.lesswrong.com/posts/AcKRB8wDpdaN6v6ru/interpreting-gpt-the-logit-lens)=========
 
 def get_model_components(model):
     """

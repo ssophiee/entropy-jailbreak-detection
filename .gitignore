@@ -22,4 +22,7 @@ __pycache__/*
 results/semantic_entropy/gpt2_sanity/*
 
 /logs/*
+!/logs/intermediate_layer
+!/logs/intermediate_layer/**
 *.log
+!/logs/intermediate_layer/**/*.log
