@@ -1,0 +1,3 @@
+/var/lib/slurm-llnl/slurmd/job5508572/slurm_script: line 9: s: command not found
+/var/lib/slurm-llnl/slurmd/job5508572/slurm_script: line 18: syntax error near unexpected token `dos'
+/var/lib/slurm-llnl/slurmd/job5508572/slurm_script: line 18: `  for SAFE in "${SAFE_DATASETS[@]}"; dos'

@@ -79,6 +79,21 @@ def compute_prompt_entropies(
     return entropies, T
 
 
+def _kendall_tau_with_position(x: np.ndarray) -> float:
+    """
+    Kendall's tau-b between token position t=[0..n-1] and entropy values x.
+    Uses all C(n,2) pairs (i,j) with j>i: concordant if x[j]>x[i], discordant if x[j]<x[i].
+    More robust than Spearman: O(n log n) scipy implementation, tie-corrected.
+    References: Kendall (1938) Biometrika 30(1-2):81-93; Mann (1945) Econometrica 13(3):245-259.
+    """
+    from scipy.stats import kendalltau
+    n = x.size
+    if n < 2:
+        return 0.0
+    t = np.arange(n, dtype=np.float64)  # token position indices
+    return float(kendalltau(t, x).statistic)
+
+
 def _spearman_rho_with_position(x: np.ndarray) -> float:
     """
     Spearman rank correlation between position t and values x.
@@ -246,8 +261,8 @@ def aggregate_entropy_features(
     Turn a per-token entropy trace into scalar features for classification.
     Includes:
       - level (mean/median/quantiles)
-      - volatility (std/range/total_variation/total_variation_norm/ac1)
-      - trend (slope, delta_seg, spearman_rho, monotonicity_up, acceleration)
+      - volatility (std/range/ac1)
+      - trend (slope, delta_seg, spearman_rho, kendall_tau, monotonicity_up, acceleration)
       - structure (peak_pos, peak_density, thirds)
     """
     empty = {
@@ -256,9 +271,7 @@ def aggregate_entropy_features(
         "first_mean": 0.0, "last_mean": 0.0,
         "slope": 0.0, "frac_above_q": 0.0, "range": 0.0,
         "delta_end": 0.0, "delta_seg": 0.0,
-        "spearman_rho": 0.0, "monotonicity_up": 0.0,
-        "total_variation": 0.0,
-        "total_variation_norm": 0.0,
+        "spearman_rho": 0.0, "kendall_tau": 0.0, "monotonicity_up": 0.0,
         "ac1": 0.0,
         "mean_acceleration": 0.0,
         "std_acceleration": 0.0,
@@ -307,21 +320,17 @@ def aggregate_entropy_features(
     delta_end = float(x[-1] - x[0]) if n >= 2 else 0.0
     delta_seg = float(last_mean - first_mean)
     spearman_rho = _spearman_rho_with_position(x)
+    kendall_tau = _kendall_tau_with_position(x)
 
     # ── Volatility ────────────────────────────────────────────────────────────
     if n >= 2:
         dx = np.diff(x)
-        total_variation = float(np.abs(dx).sum())
-        total_variation_norm = float(np.abs(dx).mean())
-
         up = float(np.maximum(dx, 0.0).sum())
         denom = float(np.abs(dx).sum()) + 1e-12
         monotonicity_up = float(up / denom)
 
         ac1 = float(np.corrcoef(x[:-1], x[1:])[0, 1]) if n >= 3 else 0.0
     else:
-        total_variation = 0.0
-        total_variation_norm = 0.0
         monotonicity_up = 0.0
         ac1 = 0.0
 
@@ -381,12 +390,11 @@ def aggregate_entropy_features(
         "delta_end": delta_end,
         "delta_seg": delta_seg,
         "spearman_rho": spearman_rho,
+        "kendall_tau": kendall_tau,
         "monotonicity_up": monotonicity_up,
         "mean_acceleration": mean_acceleration,
         "std_acceleration": std_acceleration,
         # volatility
-        "total_variation": total_variation,
-        "total_variation_norm": total_variation_norm,
         "ac1": ac1,
         # structure
         "early_third": early_third,

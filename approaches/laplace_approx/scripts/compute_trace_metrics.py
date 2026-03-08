@@ -48,10 +48,10 @@ SCORE_KEYS = [
     "first_mean", "last_mean",
     "frac_above_q", "range",
     # trend
-    "slope", "delta_end", "delta_seg", "spearman_rho",
+    "slope", "delta_end", "delta_seg", "spearman_rho", "kendall_tau",
     "monotonicity_up", "mean_acceleration", "std_acceleration",
     # volatility
-    "total_variation", "total_variation_norm", "ac1",
+    "ac1",
     # structure
     "early_third", "mid_third", "late_third",
     "early_vs_late", "mid_vs_ends",
