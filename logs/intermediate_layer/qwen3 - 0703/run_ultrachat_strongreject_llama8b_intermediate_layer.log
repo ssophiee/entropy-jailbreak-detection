@@ -1,0 +1,377 @@
+2026-03-07 19:32:24 [INFO] __main__ — ================================================================================
+2026-03-07 19:32:24 [INFO] __main__ — INTERMEDIATE LAYER ENTROPY METRICS
+2026-03-07 19:32:24 [INFO] __main__ — ================================================================================
+2026-03-07 19:32:24 [INFO] __main__ — Device          : cuda
+2026-03-07 19:32:24 [INFO] __main__ — Model path      : Qwen/Qwen3-8B
+2026-03-07 19:32:24 [INFO] __main__ — N probe layers  : 8
+2026-03-07 19:32:24 [INFO] __main__ — Score key(s)    : ALL
+2026-03-07 19:32:24 [INFO] __main__ — ================================================================================
+2026-03-07 19:32:24 [INFO] __main__ — [1/4] Loading test data...
+2026-03-07 19:32:24 [INFO] __main__ — Loading all available prompts (n_test=max)
+2026-03-07 19:32:24 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/HuggingFaceH4/ultrachat_200k/resolve/main/README.md "HTTP/1.1 307 Temporary Redirect"
+2026-03-07 19:32:24 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/api/resolve-cache/datasets/HuggingFaceH4/ultrachat_200k/8049631c405ae6576f93f445c6b8166f76f5505a/README.md "HTTP/1.1 200 OK"
+2026-03-07 19:32:25 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/HuggingFaceH4/ultrachat_200k/resolve/8049631c405ae6576f93f445c6b8166f76f5505a/ultrachat_200k.py "HTTP/1.1 404 Not Found"
+2026-03-07 19:32:25 [INFO] httpx — HTTP Request: HEAD https://s3.amazonaws.com/datasets.huggingface.co/datasets/datasets/HuggingFaceH4/ultrachat_200k/HuggingFaceH4/ultrachat_200k.py "HTTP/1.1 404 Not Found"
+2026-03-07 19:32:25 [INFO] httpx — HTTP Request: GET https://huggingface.co/api/datasets/HuggingFaceH4/ultrachat_200k/revision/8049631c405ae6576f93f445c6b8166f76f5505a "HTTP/1.1 200 OK"
+2026-03-07 19:32:25 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/HuggingFaceH4/ultrachat_200k/resolve/8049631c405ae6576f93f445c6b8166f76f5505a/.huggingface.yaml "HTTP/1.1 404 Not Found"
+2026-03-07 19:32:25 [INFO] httpx — HTTP Request: GET https://datasets-server.huggingface.co/info?dataset=HuggingFaceH4/ultrachat_200k "HTTP/1.1 200 OK"
+2026-03-07 19:32:26 [INFO] httpx — HTTP Request: GET https://huggingface.co/api/datasets/HuggingFaceH4/ultrachat_200k/tree/8049631c405ae6576f93f445c6b8166f76f5505a/data?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-03-07 19:32:26 [INFO] httpx — HTTP Request: GET https://huggingface.co/api/datasets/HuggingFaceH4/ultrachat_200k/tree/8049631c405ae6576f93f445c6b8166f76f5505a?recursive=false&expand=false "HTTP/1.1 200 OK"
+2026-03-07 19:32:26 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/HuggingFaceH4/ultrachat_200k/resolve/8049631c405ae6576f93f445c6b8166f76f5505a/dataset_infos.json "HTTP/1.1 404 Not Found"
+2026-03-07 19:32:28 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/walledai/StrongREJECT/resolve/main/README.md "HTTP/1.1 200 OK"
+2026-03-07 19:32:28 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/walledai/StrongREJECT/resolve/df54272b395ce9e584d2f8140519935425d8549f/StrongREJECT.py "HTTP/1.1 404 Not Found"
+2026-03-07 19:32:29 [INFO] httpx — HTTP Request: HEAD https://s3.amazonaws.com/datasets.huggingface.co/datasets/datasets/walledai/StrongREJECT/walledai/StrongREJECT.py "HTTP/1.1 404 Not Found"
+2026-03-07 19:32:29 [INFO] httpx — HTTP Request: GET https://huggingface.co/api/datasets/walledai/StrongREJECT/revision/df54272b395ce9e584d2f8140519935425d8549f "HTTP/1.1 200 OK"
+2026-03-07 19:32:29 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/walledai/StrongREJECT/resolve/df54272b395ce9e584d2f8140519935425d8549f/.huggingface.yaml "HTTP/1.1 404 Not Found"
+2026-03-07 19:32:29 [INFO] httpx — HTTP Request: GET https://datasets-server.huggingface.co/info?dataset=walledai/StrongREJECT "HTTP/1.1 200 OK"
+2026-03-07 19:32:29 [INFO] httpx — HTTP Request: GET https://huggingface.co/api/datasets/walledai/StrongREJECT/tree/df54272b395ce9e584d2f8140519935425d8549f/data?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-03-07 19:32:29 [INFO] httpx — HTTP Request: GET https://huggingface.co/api/datasets/walledai/StrongREJECT/tree/df54272b395ce9e584d2f8140519935425d8549f?recursive=false&expand=false "HTTP/1.1 200 OK"
+2026-03-07 19:32:29 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/datasets/walledai/StrongREJECT/resolve/df54272b395ce9e584d2f8140519935425d8549f/dataset_infos.json "HTTP/1.1 404 Not Found"
+2026-03-07 19:32:29 [INFO] __main__ —   Safe: 313  |  Harmful: 313
+2026-03-07 19:32:29 [INFO] __main__ — [2/4] Loading model...
+2026-03-07 19:32:30 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-8B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-07 19:32:30 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-8B/b968826d9c46dd6066d109eabc6255188de91218/config.json "HTTP/1.1 200 OK"
+2026-03-07 19:32:30 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-8B/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-07 19:32:30 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-8B/b968826d9c46dd6066d109eabc6255188de91218/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-03-07 19:32:30 [INFO] httpx — HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen3-8B/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-03-07 19:32:30 [INFO] httpx — HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen3-8B/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-03-07 19:32:31 [INFO] httpx — HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen3-8B "HTTP/1.1 200 OK"
+2026-03-07 19:32:31 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-8B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-07 19:32:31 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-8B/b968826d9c46dd6066d109eabc6255188de91218/config.json "HTTP/1.1 200 OK"
+2026-03-07 19:32:31 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-8B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-07 19:32:31 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-8B/b968826d9c46dd6066d109eabc6255188de91218/config.json "HTTP/1.1 200 OK"
+2026-03-07 19:32:40 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-8B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-07 19:32:40 [INFO] httpx — HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-8B/b968826d9c46dd6066d109eabc6255188de91218/generation_config.json "HTTP/1.1 200 OK"
+2026-03-07 19:32:40 [INFO] __main__ —   Running base model (no LoRA adapter)
+2026-03-07 19:32:40 [INFO] __main__ —   n_layers        : 36
+2026-03-07 19:32:40 [INFO] __main__ —   layers_to_probe : [0, 5, 10, 15, 20, 25, 30, 35]
+2026-03-07 19:32:40 [INFO] __main__ —   Total features  : 320
+2026-03-07 19:32:40 [INFO] __main__ — [3/4] Computing intermediate entropy features...
+2026-03-07 19:32:40 [INFO] __main__ —   Processing SAFE prompts...
+2026-03-07 19:34:10 [INFO] __main__ —   Processing HARMFUL prompts...
+2026-03-07 19:34:43 [INFO] __main__ — [4/4] Evaluating detection metrics...
+2026-03-07 19:34:45 [INFO] __main__ — Saved results to: results/intermediate_entropy/intermediate_entropy_all_keys_20260307_193445.json
+2026-03-07 19:34:45 [INFO] __main__ — ================================================================================
+2026-03-07 19:34:45 [INFO] __main__ — key                                         AUROC AUROC_flip       AP   TPR@1%
+2026-03-07 19:34:45 [INFO] __main__ — --------------------------------------------------------------------------------
+2026-03-07 19:34:45 [INFO] __main__ — depth_delta_end                            0.8557     0.1443   0.8064   0.0479
+2026-03-07 19:34:45 [INFO] __main__ — L35_p10                                    0.8529     0.1471   0.8101   0.0703
+2026-03-07 19:34:45 [INFO] __main__ — L35_trimmed_mean                           0.8365     0.1635   0.7618   0.0415
+2026-03-07 19:34:45 [INFO] __main__ — L35_mean                                   0.8359     0.1641   0.7591   0.0383
+2026-03-07 19:34:45 [INFO] __main__ — L35_median                                 0.8283     0.1717   0.7667   0.0511
+2026-03-07 19:34:45 [INFO] __main__ — L35_mean_acceleration                      0.8280     0.1720   0.7571   0.0192
+2026-03-07 19:34:45 [INFO] __main__ — L15_total_variation                        0.1780     0.8220   0.3422   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L5_total_variation                         0.1790     0.8210   0.3423   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — depth_early_vs_late                        0.8199     0.1801   0.7709   0.0703
+2026-03-07 19:34:45 [INFO] __main__ — L10_total_variation                        0.1807     0.8193   0.3429   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L30_total_variation                        0.1807     0.8193   0.3422   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L30_mean_acceleration                      0.8169     0.1831   0.7184   0.0224
+2026-03-07 19:34:45 [INFO] __main__ — L30_monotonicity_up                        0.1837     0.8163   0.3421   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L30_slope                                  0.1838     0.8162   0.3433   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L0_total_variation                         0.1849     0.8151   0.3433   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L20_total_variation                        0.1885     0.8115   0.3448   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L25_mean_acceleration                      0.8069     0.1931   0.7169   0.0288
+2026-03-07 19:34:45 [INFO] __main__ — L35_min                                    0.8061     0.1939   0.7674   0.0607
+2026-03-07 19:34:45 [INFO] __main__ — L25_total_variation                        0.1941     0.8059   0.3459   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L25_std                                    0.8051     0.1949   0.7388   0.0639
+2026-03-07 19:34:45 [INFO] __main__ — depth_delta_seg                            0.8049     0.1951   0.7666   0.1022
+2026-03-07 19:34:45 [INFO] __main__ — L15_monotonicity_up                        0.1954     0.8046   0.3457   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L20_monotonicity_up                        0.1961     0.8039   0.3454   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — depth_p10                                  0.8032     0.1968   0.7278   0.0224
+2026-03-07 19:34:45 [INFO] __main__ — depth_late_third                           0.8008     0.1992   0.7227   0.0319
+2026-03-07 19:34:45 [INFO] __main__ — depth_last_mean                            0.7993     0.2007   0.7202   0.0160
+2026-03-07 19:34:45 [INFO] __main__ — L5_max                                     0.2007     0.7993   0.3520   0.0032
+2026-03-07 19:34:45 [INFO] __main__ — L10_monotonicity_up                        0.2011     0.7989   0.3465   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L25_monotonicity_up                        0.2031     0.7969   0.3463   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — depth_slope                                0.7962     0.2038   0.7538   0.0671
+2026-03-07 19:34:45 [INFO] __main__ — L35_total_variation                        0.2045     0.7955   0.3470   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L35_first_mean                             0.7949     0.2051   0.7073   0.0351
+2026-03-07 19:34:45 [INFO] __main__ — L35_early_third                            0.7941     0.2059   0.7026   0.0319
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_late_third                    0.7929     0.2071   0.7048   0.0224
+2026-03-07 19:34:45 [INFO] __main__ — L30_delta_seg                              0.2090     0.7910   0.3470   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L30_early_vs_late                          0.2095     0.7905   0.3473   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L10_frac_above_1std                        0.2097     0.7903   0.3524   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L30_std                                    0.7888     0.2112   0.6995   0.0256
+2026-03-07 19:34:45 [INFO] __main__ — L35_mid_third                              0.7876     0.2124   0.7481   0.0479
+2026-03-07 19:34:45 [INFO] __main__ — L20_frac_above_1std                        0.2128     0.7872   0.3559   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L30_first_mean                             0.7867     0.2133   0.6968   0.0192
+2026-03-07 19:34:45 [INFO] __main__ — L15_mean_acceleration                      0.7843     0.2157   0.7203   0.0224
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_last_mean                     0.7841     0.2159   0.6836   0.0224
+2026-03-07 19:34:45 [INFO] __main__ — L5_range                                   0.2197     0.7803   0.3508   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L20_early_third                            0.7783     0.2217   0.7134   0.0319
+2026-03-07 19:34:45 [INFO] __main__ — L15_min                                    0.7781     0.2219   0.7249   0.0224
+2026-03-07 19:34:45 [INFO] __main__ — L35_slope                                  0.2223     0.7777   0.3581   0.0128
+2026-03-07 19:34:45 [INFO] __main__ — L30_early_third                            0.7774     0.2226   0.6901   0.0192
+2026-03-07 19:34:45 [INFO] __main__ — L35_mean_peak_height                       0.7764     0.2236   0.7162   0.0639
+2026-03-07 19:34:45 [INFO] __main__ — L35_total_variation_norm                   0.7762     0.2238   0.7133   0.0192
+2026-03-07 19:34:45 [INFO] __main__ — L10_mean_acceleration                      0.7760     0.2240   0.7375   0.0511
+2026-03-07 19:34:45 [INFO] __main__ — L15_frac_above_1std                        0.2257     0.7743   0.3564   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L35_late_third                             0.7734     0.2266   0.7370   0.0543
+2026-03-07 19:34:45 [INFO] __main__ — L20_min                                    0.7734     0.2266   0.7270   0.0511
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_slope                         0.7724     0.2276   0.7002   0.0543
+2026-03-07 19:34:45 [INFO] __main__ — L0_peak_pos                                0.7721     0.2279   0.7616   0.0735
+2026-03-07 19:34:45 [INFO] __main__ — L20_first_mean                             0.7721     0.2279   0.7084   0.0383
+2026-03-07 19:34:45 [INFO] __main__ — L35_last_mean                              0.7721     0.2279   0.7461   0.0479
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_early_vs_late                 0.7716     0.2284   0.7029   0.0575
+2026-03-07 19:34:45 [INFO] __main__ — L25_slope                                  0.2293     0.7707   0.3684   0.0128
+2026-03-07 19:34:45 [INFO] __main__ — depth_min                                  0.7691     0.2309   0.6997   0.0160
+2026-03-07 19:34:45 [INFO] __main__ — depth_ac1                                  0.2326     0.7674   0.3576   0.0032
+2026-03-07 19:34:45 [INFO] __main__ — L0_p90                                     0.2327     0.7673   0.3572   0.0032
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_ac1                           0.2329     0.7671   0.3530   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — depth_monotonicity_up                      0.7635     0.2365   0.7545   0.0447
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_delta_seg                     0.7630     0.2370   0.6869   0.0415
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_spearman_rho                  0.7616     0.2384   0.6898   0.0160
+2026-03-07 19:34:45 [INFO] __main__ — L25_first_mean                             0.7612     0.2388   0.6868   0.0256
+2026-03-07 19:34:45 [INFO] __main__ — L15_range                                  0.2397     0.7603   0.3610   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L25_early_third                            0.7586     0.2414   0.6842   0.0224
+2026-03-07 19:34:45 [INFO] __main__ — L5_p90                                     0.2428     0.7572   0.3660   0.0032
+2026-03-07 19:34:45 [INFO] __main__ — L20_mean_acceleration                      0.7453     0.2547   0.6762   0.0256
+2026-03-07 19:34:45 [INFO] __main__ — L35_p90                                    0.7449     0.2551   0.6701   0.0224
+2026-03-07 19:34:45 [INFO] __main__ — L30_frac_above_1std                        0.2612     0.7388   0.3777   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — L15_early_third                            0.7330     0.2670   0.6699   0.0192
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_median                        0.7328     0.2672   0.6761   0.0288
+2026-03-07 19:34:45 [INFO] __main__ — L5_min                                     0.7315     0.2685   0.6641   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — L35_monotonicity_up                        0.2693     0.7307   0.3679   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — L0_frac_above_q                            0.7306     0.2694   0.6810   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L5_frac_above_q                            0.7306     0.2694   0.6810   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L10_frac_above_q                           0.7306     0.2694   0.6810   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L15_frac_above_q                           0.7306     0.2694   0.6810   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L20_frac_above_q                           0.7306     0.2694   0.6810   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L25_frac_above_q                           0.7306     0.2694   0.6810   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L30_frac_above_q                           0.7306     0.2694   0.6810   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L35_frac_above_q                           0.7306     0.2694   0.6810   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L0_max                                     0.2697     0.7303   0.3811   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — L20_slope                                  0.2701     0.7299   0.4015   0.0224
+2026-03-07 19:34:45 [INFO] __main__ — L10_min                                    0.7295     0.2705   0.6695   0.0256
+2026-03-07 19:34:45 [INFO] __main__ — depth_spearman_rho                         0.7282     0.2718   0.6953   0.0639
+2026-03-07 19:34:45 [INFO] __main__ — L25_mean                                   0.7275     0.2725   0.6678   0.0415
+2026-03-07 19:34:45 [INFO] __main__ — depth_range                                0.2749     0.7251   0.3779   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L20_mean                                   0.7242     0.2758   0.6970   0.0415
+2026-03-07 19:34:45 [INFO] __main__ — L35_std                                    0.7222     0.2778   0.6239   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — L15_first_mean                             0.7206     0.2794   0.6624   0.0224
+2026-03-07 19:34:45 [INFO] __main__ — depth_std                                  0.2806     0.7194   0.3817   0.0032
+2026-03-07 19:34:45 [INFO] __main__ — L0_range                                   0.2811     0.7189   0.3686   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — depth_mean                                 0.7157     0.2843   0.6584   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — depth_trimmed_mean                         0.7157     0.2843   0.6584   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — L35_std_acceleration                       0.7156     0.2844   0.6690   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_mean                          0.7156     0.2844   0.6661   0.0383
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_trimmed_mean                  0.7156     0.2844   0.6661   0.0383
+2026-03-07 19:34:45 [INFO] __main__ — L25_min                                    0.7133     0.2867   0.6487   0.0192
+2026-03-07 19:34:45 [INFO] __main__ — depth_median                               0.7102     0.2898   0.6655   0.0032
+2026-03-07 19:34:45 [INFO] __main__ — L25_delta_seg                              0.2910     0.7090   0.3807   0.0032
+2026-03-07 19:34:45 [INFO] __main__ — L10_range                                  0.2936     0.7064   0.3810   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L15_mean                                   0.7046     0.2954   0.6645   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — L30_mid_vs_ends                            0.2990     0.7010   0.3896   0.0192
+2026-03-07 19:34:45 [INFO] __main__ — L25_total_variation_norm                   0.6993     0.3007   0.6907   0.0256
+2026-03-07 19:34:45 [INFO] __main__ — L25_early_vs_late                          0.3024     0.6976   0.3934   0.0128
+2026-03-07 19:34:45 [INFO] __main__ — L10_early_third                            0.6975     0.3025   0.6580   0.0224
+2026-03-07 19:34:45 [INFO] __main__ — L35_ac1                                    0.3027     0.6973   0.4015   0.0032
+2026-03-07 19:34:45 [INFO] __main__ — L10_slope                                  0.3047     0.6953   0.4363   0.0383
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_min                           0.6921     0.3079   0.6247   0.0032
+2026-03-07 19:34:45 [INFO] __main__ — L20_range                                  0.3106     0.6894   0.4065   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L10_first_mean                             0.6877     0.3123   0.6533   0.0288
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_peak_pos                      0.6836     0.3164   0.6298   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L20_median                                 0.6828     0.3172   0.6698   0.0256
+2026-03-07 19:34:45 [INFO] __main__ — L15_slope                                  0.3173     0.6827   0.4509   0.0511
+2026-03-07 19:34:45 [INFO] __main__ — depth_mid_third                            0.6826     0.3174   0.6401   0.0128
+2026-03-07 19:34:45 [INFO] __main__ — L25_frac_below_1std                        0.3176     0.6824   0.4153   0.0128
+2026-03-07 19:34:45 [INFO] __main__ — L25_peak_density                           0.3203     0.6797   0.4219   0.0256
+2026-03-07 19:34:45 [INFO] __main__ — L0_delta_end                               0.6796     0.3204   0.6797   0.0192
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_frac_above_1std               0.3210     0.6790   0.4304   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — L30_mean                                   0.6785     0.3215   0.6296   0.0192
+2026-03-07 19:34:45 [INFO] __main__ — L20_trimmed_mean                           0.6757     0.3243   0.6604   0.0351
+2026-03-07 19:34:45 [INFO] __main__ — L20_p10                                    0.6732     0.3268   0.6572   0.0128
+2026-03-07 19:34:45 [INFO] __main__ — L10_peak_density                           0.3272     0.6728   0.4385   0.0192
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_mean_acceleration             0.3290     0.6710   0.3960   0.0032
+2026-03-07 19:34:45 [INFO] __main__ — L20_early_vs_late                          0.3293     0.6707   0.4058   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_p10                           0.6705     0.3295   0.6308   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — L25_range                                  0.3299     0.6701   0.4091   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L35_delta_end                              0.6693     0.3307   0.6186   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — L0_trimmed_mean                            0.3309     0.6691   0.4129   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — depth_frac_above_1std                      0.3319     0.6681   0.4375   0.0032
+2026-03-07 19:34:45 [INFO] __main__ — L30_total_variation_norm                   0.6676     0.3324   0.6326   0.0224
+2026-03-07 19:34:45 [INFO] __main__ — L20_p90                                    0.6652     0.3348   0.6523   0.0447
+2026-03-07 19:34:45 [INFO] __main__ — L20_std                                    0.6642     0.3358   0.6631   0.0192
+2026-03-07 19:34:45 [INFO] __main__ — L20_delta_seg                              0.3360     0.6640   0.4146   0.0160
+2026-03-07 19:34:45 [INFO] __main__ — L25_trimmed_mean                           0.6639     0.3361   0.6299   0.0447
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_delta_end                     0.6629     0.3371   0.6217   0.0224
+2026-03-07 19:34:45 [INFO] __main__ — L15_p10                                    0.6610     0.3390   0.6603   0.0288
+2026-03-07 19:34:45 [INFO] __main__ — L0_mean_peak_height                        0.3393     0.6607   0.4158   0.0032
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_monotonicity_up               0.6590     0.3410   0.6145   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — L20_peak_density                           0.3412     0.6588   0.4369   0.0160
+2026-03-07 19:34:45 [INFO] __main__ — L0_min                                     0.6579     0.3421   0.6089   0.0128
+2026-03-07 19:34:45 [INFO] __main__ — L25_p90                                    0.6567     0.3433   0.6641   0.0958
+2026-03-07 19:34:45 [INFO] __main__ — L35_frac_below_1std                        0.6553     0.3447   0.5938   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — L20_spearman_rho                           0.3463     0.6537   0.4149   0.0128
+2026-03-07 19:34:45 [INFO] __main__ — L25_frac_above_1std                        0.3469     0.6531   0.4332   0.0160
+2026-03-07 19:34:45 [INFO] __main__ — L30_ac1                                    0.3470     0.6530   0.4635   0.0256
+2026-03-07 19:34:45 [INFO] __main__ — L15_peak_density                           0.3478     0.6522   0.4464   0.0224
+2026-03-07 19:34:45 [INFO] __main__ — L0_mean                                    0.3496     0.6504   0.4245   0.0128
+2026-03-07 19:34:45 [INFO] __main__ — L30_peak_density                           0.3499     0.6501   0.4468   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — L10_early_vs_late                          0.3510     0.6490   0.4232   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — L15_median                                 0.6473     0.3527   0.6076   0.0032
+2026-03-07 19:34:45 [INFO] __main__ — L0_frac_above_1std                         0.3529     0.6471   0.4410   0.0160
+2026-03-07 19:34:45 [INFO] __main__ — L35_early_vs_late                          0.3539     0.6461   0.4076   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_mid_vs_ends                   0.3540     0.6460   0.4207   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — L25_mid_vs_ends                            0.3549     0.6451   0.4350   0.0224
+2026-03-07 19:34:45 [INFO] __main__ — L15_trimmed_mean                           0.6434     0.3566   0.6185   0.0319
+2026-03-07 19:34:45 [INFO] __main__ — L10_p90                                    0.3570     0.6430   0.4089   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — L30_min                                    0.6391     0.3609   0.6271   0.0447
+2026-03-07 19:34:45 [INFO] __main__ — depth_mid_vs_ends                          0.6389     0.3611   0.6401   0.0479
+2026-03-07 19:34:45 [INFO] __main__ — L25_p10                                    0.6364     0.3636   0.5989   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — L10_p10                                    0.6361     0.3639   0.6329   0.0383
+2026-03-07 19:34:45 [INFO] __main__ — depth_mean_acceleration                    0.6359     0.3641   0.6359   0.0288
+2026-03-07 19:34:45 [INFO] __main__ — L5_delta_end                               0.3644     0.6356   0.4034   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L10_spearman_rho                           0.3682     0.6318   0.4277   0.0160
+2026-03-07 19:34:45 [INFO] __main__ — L10_delta_seg                              0.3689     0.6311   0.4285   0.0192
+2026-03-07 19:34:45 [INFO] __main__ — L35_range                                  0.3692     0.6308   0.4218   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L15_early_vs_late                          0.3702     0.6298   0.4335   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — L5_frac_above_1std                         0.3712     0.6288   0.4612   0.0288
+2026-03-07 19:34:45 [INFO] __main__ — L0_peak_density                            0.3723     0.6277   0.4800   0.0351
+2026-03-07 19:34:45 [INFO] __main__ — L0_monotonicity_up                         0.6270     0.3730   0.7309   0.1885
+2026-03-07 19:34:45 [INFO] __main__ — L35_delta_seg                              0.3743     0.6257   0.4138   0.0032
+2026-03-07 19:34:45 [INFO] __main__ — L10_mean                                   0.6245     0.3755   0.6017   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — L0_early_third                             0.3767     0.6233   0.4321   0.0032
+2026-03-07 19:34:45 [INFO] __main__ — L30_max                                    0.6229     0.3771   0.5853   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L15_mid_third                              0.6215     0.3785   0.6344   0.0256
+2026-03-07 19:34:45 [INFO] __main__ — L25_max                                    0.6205     0.3795   0.5852   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L20_max                                    0.6205     0.3795   0.5832   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L15_delta_seg                              0.3805     0.6195   0.4421   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — L5_peak_pos                                0.6194     0.3806   0.5481   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L20_mid_third                              0.6190     0.3810   0.6456   0.0607
+2026-03-07 19:34:45 [INFO] __main__ — L30_std_acceleration                       0.6183     0.3817   0.5955   0.0192
+2026-03-07 19:34:45 [INFO] __main__ — L0_first_mean                              0.3827     0.6173   0.4354   0.0032
+2026-03-07 19:34:45 [INFO] __main__ — L20_total_variation_norm                   0.6170     0.3830   0.6447   0.0351
+2026-03-07 19:34:45 [INFO] __main__ — L20_mean_peak_height                       0.6097     0.3903   0.6186   0.0256
+2026-03-07 19:34:45 [INFO] __main__ — depth_first_mean                           0.3910     0.6090   0.4383   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — depth_early_third                          0.3910     0.6090   0.4383   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — L10_frac_below_1std                        0.3921     0.6079   0.4666   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L10_mid_vs_ends                            0.3930     0.6070   0.4758   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — L15_ac1                                    0.3945     0.6055   0.4834   0.0288
+2026-03-07 19:34:45 [INFO] __main__ — L30_spearman_rho                           0.3970     0.6030   0.4770   0.0383
+2026-03-07 19:34:45 [INFO] __main__ — L5_trimmed_mean                            0.3974     0.6026   0.4427   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — L10_median                                 0.6024     0.3976   0.5838   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — L15_mean_peak_height                       0.6019     0.3981   0.5753   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — depth_std_acceleration                     0.6009     0.3991   0.6393   0.0607
+2026-03-07 19:34:45 [INFO] __main__ — L5_monotonicity_up                         0.6006     0.3994   0.6250   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — L5_peak_density                            0.4014     0.5986   0.4906   0.0224
+2026-03-07 19:34:45 [INFO] __main__ — L5_std                                     0.4036     0.5964   0.4539   0.0128
+2026-03-07 19:34:45 [INFO] __main__ — L15_frac_below_1std                        0.4062     0.5938   0.4974   0.0319
+2026-03-07 19:34:45 [INFO] __main__ — L30_p10                                    0.5928     0.4072   0.5988   0.0256
+2026-03-07 19:34:45 [INFO] __main__ — L5_mean_peak_height                        0.4079     0.5921   0.4409   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L30_late_third                             0.4089     0.5911   0.4638   0.0032
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_frac_below_1std               0.5909     0.4091   0.5518   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L35_max                                    0.4104     0.5896   0.4489   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L25_median                                 0.5894     0.4106   0.5852   0.0160
+2026-03-07 19:34:45 [INFO] __main__ — L25_std_acceleration                       0.5891     0.4109   0.6072   0.0383
+2026-03-07 19:34:45 [INFO] __main__ — L0_median                                  0.4135     0.5865   0.4555   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — L0_spearman_rho                            0.5856     0.4144   0.6563   0.1565
+2026-03-07 19:34:45 [INFO] __main__ — L30_mean_peak_height                       0.4155     0.5845   0.4666   0.0192
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_range                         0.4160     0.5840   0.4768   0.0192
+2026-03-07 19:34:45 [INFO] __main__ — L15_spearman_rho                           0.4166     0.5834   0.4568   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — L5_p10                                     0.5821     0.4179   0.5914   0.0351
+2026-03-07 19:34:45 [INFO] __main__ — L10_trimmed_mean                           0.5807     0.4193   0.5688   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — depth_p90                                  0.4196     0.5804   0.4599   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — L15_last_mean                              0.5786     0.4214   0.6006   0.0351
+2026-03-07 19:34:45 [INFO] __main__ — L5_median                                  0.4234     0.5766   0.4640   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L25_mid_third                              0.5766     0.4234   0.5844   0.0256
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_std                           0.4235     0.5765   0.4930   0.0224
+2026-03-07 19:34:45 [INFO] __main__ — L0_ac1                                     0.4249     0.5751   0.5005   0.0511
+2026-03-07 19:34:45 [INFO] __main__ — L25_late_third                             0.5747     0.4253   0.5851   0.0128
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_first_mean                    0.4261     0.5739   0.4781   0.0128
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_early_third                   0.4261     0.5739   0.4781   0.0128
+2026-03-07 19:34:45 [INFO] __main__ — L30_last_mean                              0.4263     0.5737   0.4784   0.0128
+2026-03-07 19:34:45 [INFO] __main__ — L30_trimmed_mean                           0.5728     0.4272   0.5685   0.0160
+2026-03-07 19:34:45 [INFO] __main__ — L10_std_acceleration                       0.4278     0.5722   0.4962   0.0479
+2026-03-07 19:34:45 [INFO] __main__ — L5_mean                                    0.4280     0.5720   0.4703   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — L15_late_third                             0.5716     0.4284   0.5818   0.0128
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_p90                           0.5712     0.4288   0.5861   0.0479
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_peak_density                  0.5703     0.4297   0.5506   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L25_last_mean                              0.5693     0.4307   0.5783   0.0256
+2026-03-07 19:34:45 [INFO] __main__ — L35_spearman_rho                           0.4331     0.5669   0.4611   0.0192
+2026-03-07 19:34:45 [INFO] __main__ — L20_ac1                                    0.4335     0.5665   0.5078   0.0447
+2026-03-07 19:34:45 [INFO] __main__ — L20_late_third                             0.5659     0.4341   0.5773   0.0128
+2026-03-07 19:34:45 [INFO] __main__ — L5_mean_acceleration                       0.4341     0.5659   0.5320   0.0256
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_total_variation               0.5646     0.4354   0.5771   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_total_variation_norm          0.5646     0.4354   0.5771   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — L0_mid_third                               0.4355     0.5645   0.4905   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — L0_late_third                              0.4358     0.5642   0.4924   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — L20_last_mean                              0.5632     0.4368   0.5827   0.0351
+2026-03-07 19:34:45 [INFO] __main__ — L20_mid_vs_ends                            0.4374     0.5626   0.5310   0.0447
+2026-03-07 19:34:45 [INFO] __main__ — L5_late_third                              0.4384     0.5616   0.4945   0.0224
+2026-03-07 19:34:45 [INFO] __main__ — L10_max                                    0.5599     0.4401   0.5394   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L15_max                                    0.5598     0.4402   0.5442   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L5_std_acceleration                        0.4407     0.5593   0.5020   0.0288
+2026-03-07 19:34:45 [INFO] __main__ — L15_std                                    0.5585     0.4415   0.5710   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — L0_last_mean                               0.4423     0.5577   0.5109   0.0160
+2026-03-07 19:34:45 [INFO] __main__ — L5_slope                                   0.4428     0.5572   0.5467   0.0319
+2026-03-07 19:34:45 [INFO] __main__ — L0_frac_below_1std                         0.5557     0.4443   0.5912   0.0032
+2026-03-07 19:34:45 [INFO] __main__ — L5_ac1                                     0.4447     0.5553   0.5279   0.0671
+2026-03-07 19:34:45 [INFO] __main__ — L20_std_acceleration                       0.5542     0.4458   0.6072   0.0575
+2026-03-07 19:34:45 [INFO] __main__ — L20_frac_below_1std                        0.4460     0.5540   0.5236   0.0319
+2026-03-07 19:34:45 [INFO] __main__ — L25_mean_peak_height                       0.5539     0.4461   0.5716   0.0351
+2026-03-07 19:34:45 [INFO] __main__ — depth_peak_density                         0.5533     0.4467   0.5393   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L30_delta_end                              0.4467     0.5533   0.4620   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L35_peak_density                           0.4478     0.5522   0.5086   0.0319
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_max                           0.5520     0.4480   0.5584   0.0224
+2026-03-07 19:34:45 [INFO] __main__ — L10_mean_peak_height                       0.4494     0.5506   0.4758   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — L25_ac1                                    0.4511     0.5489   0.5222   0.0288
+2026-03-07 19:34:45 [INFO] __main__ — depth_max                                  0.4512     0.5488   0.4789   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — L35_peak_pos                               0.4538     0.5462   0.4949   0.0032
+2026-03-07 19:34:45 [INFO] __main__ — L5_total_variation_norm                    0.4546     0.5454   0.4935   0.0351
+2026-03-07 19:34:45 [INFO] __main__ — L10_ac1                                    0.4548     0.5452   0.5183   0.0160
+2026-03-07 19:34:45 [INFO] __main__ — L10_delta_end                              0.5452     0.4548   0.5106   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L0_early_vs_late                           0.5446     0.4554   0.6130   0.0607
+2026-03-07 19:34:45 [INFO] __main__ — L25_spearman_rho                           0.4575     0.5425   0.5410   0.0543
+2026-03-07 19:34:45 [INFO] __main__ — L15_mid_vs_ends                            0.4590     0.5410   0.5358   0.0224
+2026-03-07 19:34:45 [INFO] __main__ — L0_delta_seg                               0.5403     0.4597   0.6039   0.0671
+2026-03-07 19:34:45 [INFO] __main__ — L35_mid_vs_ends                            0.4614     0.5386   0.5483   0.0575
+2026-03-07 19:34:45 [INFO] __main__ — L5_spearman_rho                            0.4616     0.5384   0.5103   0.0160
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_mid_third                     0.5380     0.4620   0.5430   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_mean_peak_height              0.5364     0.4636   0.5496   0.0415
+2026-03-07 19:34:45 [INFO] __main__ — L5_early_vs_late                           0.4642     0.5358   0.5261   0.0383
+2026-03-07 19:34:45 [INFO] __main__ — L5_last_mean                               0.4659     0.5341   0.5168   0.0128
+2026-03-07 19:34:45 [INFO] __main__ — L15_std_acceleration                       0.4671     0.5329   0.5202   0.0192
+2026-03-07 19:34:45 [INFO] __main__ — L10_last_mean                              0.5316     0.4684   0.5486   0.0160
+2026-03-07 19:34:45 [INFO] __main__ — L35_frac_above_1std                        0.4688     0.5312   0.5066   0.0192
+2026-03-07 19:34:45 [INFO] __main__ — L30_p90                                    0.5295     0.4705   0.5276   0.0160
+2026-03-07 19:34:45 [INFO] __main__ — L5_mid_third                               0.4717     0.5283   0.5071   0.0032
+2026-03-07 19:34:45 [INFO] __main__ — depth_frac_below_1std                      0.5273     0.4727   0.5163   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_std_acceleration              0.5270     0.4730   0.5578   0.0415
+2026-03-07 19:34:45 [INFO] __main__ — L15_p90                                    0.5263     0.4737   0.5240   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — L30_median                                 0.5242     0.4758   0.5441   0.0256
+2026-03-07 19:34:45 [INFO] __main__ — L10_total_variation_norm                   0.4759     0.5241   0.5168   0.0224
+2026-03-07 19:34:45 [INFO] __main__ — L0_std                                     0.4769     0.5231   0.5354   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — L0_p10                                     0.4789     0.5211   0.5219   0.0192
+2026-03-07 19:34:45 [INFO] __main__ — L0_mid_vs_ends                             0.5202     0.4798   0.5979   0.0319
+2026-03-07 19:34:45 [INFO] __main__ — L15_total_variation_norm                   0.5187     0.4813   0.5530   0.0160
+2026-03-07 19:34:45 [INFO] __main__ — L5_frac_below_1std                         0.4834     0.5166   0.5414   0.0224
+2026-03-07 19:34:45 [INFO] __main__ — depth_total_variation                      0.5159     0.4841   0.5747   0.0511
+2026-03-07 19:34:45 [INFO] __main__ — depth_total_variation_norm                 0.5159     0.4841   0.5747   0.0511
+2026-03-07 19:34:45 [INFO] __main__ — L15_delta_end                              0.5155     0.4845   0.4971   0.0032
+2026-03-07 19:34:45 [INFO] __main__ — L30_range                                  0.5148     0.4852   0.5258   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L0_slope                                   0.4862     0.5138   0.6113   0.1086
+2026-03-07 19:34:45 [INFO] __main__ — L25_delta_end                              0.4875     0.5125   0.4837   0.0032
+2026-03-07 19:34:45 [INFO] __main__ — L5_early_third                             0.5123     0.4877   0.5129   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — L10_std                                    0.5119     0.4881   0.5202   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — L5_mid_vs_ends                             0.5115     0.4885   0.5472   0.0160
+2026-03-07 19:34:45 [INFO] __main__ — L20_delta_end                              0.4889     0.5111   0.4946   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — L30_frac_below_1std                        0.4920     0.5080   0.5000   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L30_mid_third                              0.4931     0.5069   0.5199   0.0128
+2026-03-07 19:34:45 [INFO] __main__ — L5_delta_seg                               0.4932     0.5068   0.5313   0.0256
+2026-03-07 19:34:45 [INFO] __main__ — L0_std_acceleration                        0.4939     0.5061   0.5534   0.0351
+2026-03-07 19:34:45 [INFO] __main__ — depth_mean_peak_height                     0.4950     0.5050   0.4918   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — L10_late_third                             0.5033     0.4967   0.5220   0.0096
+2026-03-07 19:34:45 [INFO] __main__ — depth_peak_pos                             0.4974     0.5026   0.5145   0.0383
+2026-03-07 19:34:45 [INFO] __main__ — L0_total_variation_norm                    0.5021     0.4979   0.5482   0.0192
+2026-03-07 19:34:45 [INFO] __main__ — L5_first_mean                              0.5017     0.4983   0.5082   0.0064
+2026-03-07 19:34:45 [INFO] __main__ — L0_mean_acceleration                       0.4988     0.5012   0.5782   0.0351
+2026-03-07 19:34:45 [INFO] __main__ — L10_mid_third                              0.4997     0.5003   0.5339   0.0192
+2026-03-07 19:34:45 [INFO] __main__ — L10_peak_pos                               0.5000     0.5000   0.5000   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L15_peak_pos                               0.5000     0.5000   0.5000   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L20_peak_pos                               0.5000     0.5000   0.5000   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L25_peak_pos                               0.5000     0.5000   0.5000   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — L30_peak_pos                               0.5000     0.5000   0.5000   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — depth_frac_above_q                         0.5000     0.5000   0.5000   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — depth_spread_frac_above_q                  0.5000     0.5000   0.5000   0.0000
+2026-03-07 19:34:45 [INFO] __main__ — ================================================================================

@@ -26,3 +26,5 @@ results/semantic_entropy/gpt2_sanity/*
 !/logs/intermediate_layer/**
 *.log
 !/logs/intermediate_layer/**/*.log
+
+results/intermediate_entropy/*.md

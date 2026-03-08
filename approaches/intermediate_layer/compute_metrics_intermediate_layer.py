@@ -216,23 +216,23 @@ def main(args):
 
     # 2) Load model (no Fisher needed — single forward pass)
     log.info("[2/4] Loading model...")
-    tokenizer = AutoTokenizer.from_pretrained(constants.MODEL_NAME)
+    # is_lora_path: only true when model_path is an existing local directory (LoRA adapter)
+    is_lora_path = os.path.isdir(args.model_path)
+    base_model_id = constants.MODEL_NAME if is_lora_path else args.model_path
+
+    tokenizer = AutoTokenizer.from_pretrained(base_model_id)
     base_model = AutoModelForCausalLM.from_pretrained(
-        constants.MODEL_NAME,
+        base_model_id,
         torch_dtype=torch.float32,
         device_map=constants.DEVICE,
     )
 
-    # If model_path is a HuggingFace model id or equals the base model, skip LoRA
-    is_base_model = (args.model_path == constants.MODEL_NAME or 
-                    not os.path.exists(args.model_path))
-
-    if is_base_model:
-        log.info("  Running base model (no LoRA adapter)")
-        model = base_model
-    else:
+    if is_lora_path:
         log.info("  Loading LoRA adapter from: %s", args.model_path)
         model = PeftModel.from_pretrained(base_model, args.model_path)
+    else:
+        log.info("  Running base model (no LoRA adapter)")
+        model = base_model
 
     model.to(constants.DEVICE)
     model.eval()
@@ -322,7 +322,7 @@ def main(args):
     payload = {
         "timestamp": ts,
         "model_path": args.model_path,
-        "base_model": constants.MODEL_NAME,
+        "base_model": base_model_id,
         "n_probe": args.n_probe,
         "layers_probed": layers_to_probe,
         "n_layers_total": n_layers,
