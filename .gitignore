@@ -1,30 +1,15 @@
 # Environment files
 .env
-requirements.txt
-*.sbatch
 # OS files
 .DS_Store
 **/.DS_Store
 
-# Documentation and notes
-to_do.md
-*FIXES_APPLIED.md
-*FISHER_FIX_INSTRUCTIONS.md
-*morning-todo.md
-*colab_manual.md
-
-# Scripts marked for removal
-inspect_fisher.py
-example_bayesian_lora_kfac[remove].py
-
+__pycache__
 __pycache__/*
 *.pyc
-results/semantic_entropy/gpt2_sanity/*
 
 /logs/*
 !/logs/intermediate_layer
 !/logs/intermediate_layer/**
 *.log
 !/logs/intermediate_layer/**/*.log
-
-results/intermediate_entropy/*.md

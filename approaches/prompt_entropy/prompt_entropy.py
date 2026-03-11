@@ -29,56 +29,6 @@ def _entropy_from_logits(logits: torch.Tensor) -> torch.Tensor:
     H = -(p * logp).sum(dim=-1)
     return H
 
-
-@torch.no_grad()
-def compute_prompt_entropies(
-    model,
-    tokenizer,
-    prompt: str,
-    device: Optional[torch.device] = None,
-    max_length: Optional[int] = None,
-) -> Tuple[List[float], int]:
-    """
-    Entropy trace while reading the prompt (teacher forcing):
-    For each position t (except the last), compute entropy of p(x_{t+1} | x_{<=t}).
-
-    Single forward pass:
-      logits[:, t, :] predicts token at t+1.
-
-    Returns:
-      entropies: list length (n_tokens - 1)
-      n_tokens: number of prompt tokens
-    """
-    model.eval()
-    if device is None:
-        device = next(model.parameters()).device
-
-    tok = tokenizer(
-        prompt,
-        return_tensors="pt",
-        truncation=True,
-        max_length=max_length,
-        add_special_tokens=True,
-    )
-    input_ids = tok["input_ids"].to(device)        # [1, T]
-    attention_mask = tok.get("attention_mask", None)
-    if attention_mask is not None:
-        attention_mask = attention_mask.to(device)
-
-    T = int(input_ids.shape[1])
-    if T < 2:
-        return [], T
-
-    out = model(input_ids=input_ids, attention_mask=attention_mask)
-    logits = out.logits                              # [1, T, V]
-
-    # Entropy at position t corresponds to predicting token t+1
-    H = _entropy_from_logits(logits[:, :-1, :])      # [1, T-1]
-    entropies = H.squeeze(0).detach().float().cpu().tolist()
-
-    return entropies, T
-
-
 def _kendall_tau_with_position(x: np.ndarray) -> float:
     """
     Kendall's tau-b between token position t=[0..n-1] and entropy values x.
@@ -116,169 +66,31 @@ def _spearman_rho_with_position(x: np.ndarray) -> float:
     denom = (np.sqrt((rx * rx).mean()) * np.sqrt((rt * rt).mean())) + 1e-12
     return float((rx * rt).mean() / denom)
 
-
-# def aggregate_entropy_features(
-#     entropies: List[float],
-#     *,
-#     trim_ratio: float = 0.10,
-#     first_frac: float = 0.25,
-#     last_frac: float = 0.25,
-#     high_q: float = 0.90,
-# ) -> Dict[str, float]:
-#     """
-#     Turn a per-token entropy trace into scalar features for classification.
-#     Includes:
-#       - level (mean/median/quantiles)
-#       - volatility (std/range/total_variation)
-#       - trend (slope, delta_end, delta_seg, spearman_rho, monotonicity_up)
-#       - structure (peak_pos)
-#     """
-#     # Stable keys even for empty traces
-#     empty = {
-#         "mean": 0.0, "std": 0.0, "min": 0.0, "max": 0.0, "median": 0.0,
-#         "p10": 0.0, "p90": 0.0, "trimmed_mean": 0.0,
-#         "first_mean": 0.0, "last_mean": 0.0,
-#         "auc": 0.0, "slope": 0.0,
-#         "frac_above_q": 0.0, "range": 0.0,
-
-#         # new trend/structure metrics
-#         "delta_end": 0.0,
-#         "delta_seg": 0.0,
-#         "spearman_rho": 0.0,
-#         "total_variation": 0.0,
-#         "monotonicity_up": 0.0,
-#         "peak_pos": 0.0,
-#     }
-
-#     if len(entropies) == 0:
-#         return empty
-
-#     x = np.asarray(entropies, dtype=np.float64)
-#     n = x.size
-#     if n == 0:
-#         return empty
-
-#     # Basic stats
-#     mean = float(x.mean())
-#     std = float(x.std())
-#     mn = float(x.min())
-#     mx = float(x.max())
-#     med = float(np.median(x))
-#     p10 = float(np.quantile(x, 0.10))
-#     p90 = float(np.quantile(x, 0.90))
-#     rng = float(mx - mn)
-
-#     # Robust trimmed mean
-#     k = int(math.floor(trim_ratio * n))
-#     if 2 * k < n:
-#         xs = np.sort(x)
-#         trimmed = float(xs[k:n - k].mean())
-#     else:
-#         trimmed = mean
-
-#     # Early vs late entropies
-#     first_k = max(1, int(math.ceil(first_frac * n)))
-#     last_k = max(1, int(math.ceil(last_frac * n)))
-#     first_mean = float(x[:first_k].mean())
-#     last_mean = float(x[-last_k:].mean())
-
-#     # AUC-like (sum); you can normalize by n if you prefer, but mean already captures that.
-#     auc = float(x.sum())
-
-#     # Linear trend (slope) over position index
-#     if n >= 2:
-#         t = np.arange(n, dtype=np.float64)
-#         slope = float(np.cov(t, x, bias=True)[0, 1] / (t.var() + 1e-12))
-#     else:
-#         slope = 0.0
-
-#     # Spikiness: fraction above a high quantile threshold
-#     thr = float(np.quantile(x, high_q))
-#     frac_above = float((x >= thr).mean())
-
-#     # -----------------------
-#     # NEW: trend/structure
-#     # -----------------------
-
-#     # Endpoint drift
-#     delta_end = float(x[-1] - x[0]) if n >= 2 else 0.0
-
-#     # Segment drift (more robust than endpoints)
-#     delta_seg = float(last_mean - first_mean)
-
-#     # Monotonic trend robustness (rank correlation)
-#     spearman_rho = _spearman_rho_with_position(x)
-
-#     # Volatility / jaggedness
-#     if n >= 2:
-#         dx = np.diff(x)
-#         total_variation = float(np.abs(dx).sum())
-#         up = float(np.maximum(dx, 0.0).sum())
-#         denom = float(np.abs(dx).sum()) + 1e-12
-#         monotonicity_up = float(up / denom)  # 1 => mostly increasing, 0 => mostly decreasing
-#     else:
-#         total_variation = 0.0
-#         monotonicity_up = 0.0
-
-#     # Where the max happens (normalized position in [0,1])
-#     peak_idx = int(np.argmax(x))
-#     peak_pos = float(peak_idx / (n - 1)) if n >= 2 else 0.0
-
-#     return {
-#         "mean": mean,
-#         "std": std,
-#         "min": mn,
-#         "max": mx,
-#         "median": med,
-#         "p10": p10,
-#         "p90": p90,
-#         "trimmed_mean": trimmed,
-#         "first_mean": first_mean,
-#         "last_mean": last_mean,
-#         "auc": auc,
-#         "slope": slope,
-#         "frac_above_q": frac_above,
-#         "range": rng,
-
-#         # new
-#         "delta_end": delta_end,
-#         "delta_seg": delta_seg,
-#         "spearman_rho": spearman_rho,
-#         "total_variation": total_variation,
-#         "monotonicity_up": monotonicity_up,
-#         "peak_pos": peak_pos,
-#     }
-
 def aggregate_entropy_features(
     entropies: List[float],
     *,
     trim_ratio: float = 0.10,
     first_frac: float = 0.25,
     last_frac: float = 0.25,
-    high_q: float = 0.90,
 ) -> Dict[str, float]:
     """
     Turn a per-token entropy trace into scalar features for classification.
     Includes:
       - level (mean/median/quantiles)
-      - volatility (std/range/ac1)
+      - volatility (std/ac1)
       - trend (slope, delta_seg, spearman_rho, kendall_tau, monotonicity_up, acceleration)
-      - structure (peak_pos, peak_density, thirds)
+      - structure (peak_density, thirds)
     """
     empty = {
-        "mean": 0.0, "std": 0.0, "min": 0.0, "max": 0.0, "median": 0.0,
-        "p10": 0.0, "p90": 0.0, "trimmed_mean": 0.0,
-        "first_mean": 0.0, "last_mean": 0.0,
-        "slope": 0.0, "frac_above_q": 0.0, "range": 0.0,
-        "delta_end": 0.0, "delta_seg": 0.0,
+        "mean": 0.0, "std": 0.0, "max": 0.0, "median": 0.0,
+        "trimmed_mean": 0.0, "first_mean": 0.0, "last_mean": 0.0,
+        "slope": 0.0, "delta_end": 0.0, "delta_seg": 0.0,
         "spearman_rho": 0.0, "kendall_tau": 0.0, "monotonicity_up": 0.0,
-        "ac1": 0.0,
-        "mean_acceleration": 0.0,
-        "std_acceleration": 0.0,
+        "ac1": 0.0, "mean_acceleration": 0.0, "std_acceleration": 0.0,
         "early_third": 0.0, "mid_third": 0.0, "late_third": 0.0,
         "early_vs_late": 0.0, "mid_vs_ends": 0.0,
-        "peak_pos": 0.0, "peak_density": 0.0, "mean_peak_height": 0.0,
-        "frac_above_1std": 0.0, "frac_below_1std": 0.0,
+        "peak_density": 0.0, "mean_peak_height": 0.0,
+        "frac_above_1std": 0.0,
     }
 
     if len(entropies) == 0:
@@ -292,12 +104,8 @@ def aggregate_entropy_features(
     # ── Level ────────────────────────────────────────────────────────────────
     mean = float(x.mean())
     std = float(x.std())
-    mn = float(x.min())
     mx = float(x.max())
     med = float(np.median(x))
-    p10 = float(np.quantile(x, 0.10))
-    p90 = float(np.quantile(x, 0.90))
-    rng = float(mx - mn)
 
     k = int(math.floor(trim_ratio * n))
     trimmed = float(np.sort(x)[k:n - k].mean()) if 2 * k < n else mean
@@ -306,9 +114,6 @@ def aggregate_entropy_features(
     last_k  = max(1, int(math.ceil(last_frac  * n)))
     first_mean = float(x[:first_k].mean())
     last_mean  = float(x[-last_k:].mean())
-
-    thr = float(np.quantile(x, high_q))
-    frac_above = float((x >= thr).mean())
 
     # ── Trend ─────────────────────────────────────────────────────────────────
     if n >= 2:
@@ -352,10 +157,6 @@ def aggregate_entropy_features(
     early_vs_late = late_third - early_third
     mid_vs_ends   = mid_third - (early_third + late_third) / 2.0
 
-    # Peak position (normalized)
-    peak_idx = int(np.argmax(x))
-    peak_pos = float(peak_idx / (n - 1)) if n >= 2 else 0.0
-
     # Peak density (requires scipy; falls back gracefully)
     try:
         from scipy.signal import find_peaks
@@ -369,23 +170,15 @@ def aggregate_entropy_features(
 
     # Self-relative spikiness
     frac_above_1std = float((x > mean + std).mean())
-    frac_below_1std = float((x < mean - std).mean())
 
     return {
-        # level
         "mean": mean,
         "std": std,
-        "min": mn,
         "max": mx,
         "median": med,
-        "p10": p10,
-        "p90": p90,
         "trimmed_mean": trimmed,
         "first_mean": first_mean,
         "last_mean": last_mean,
-        "frac_above_q": frac_above,
-        "range": rng,
-        # trend
         "slope": slope,
         "delta_end": delta_end,
         "delta_seg": delta_seg,
@@ -394,70 +187,19 @@ def aggregate_entropy_features(
         "monotonicity_up": monotonicity_up,
         "mean_acceleration": mean_acceleration,
         "std_acceleration": std_acceleration,
-        # volatility
         "ac1": ac1,
-        # structure
         "early_third": early_third,
         "mid_third": mid_third,
         "late_third": late_third,
         "early_vs_late": early_vs_late,
         "mid_vs_ends": mid_vs_ends,
-        "peak_pos": peak_pos,
         "peak_density": peak_density,
         "mean_peak_height": mean_peak_height,
         "frac_above_1std": frac_above_1std,
-        "frac_below_1std": frac_below_1std,
     }
 
-    
-@torch.no_grad()
-def compute_prompt_entropy_features(
-    model,
-    tokenizer,
-    prompts: List[str],
-    *,
-    device: Optional[torch.device] = None,
-    max_length: Optional[int] = None,
-    trim_ratio: float = 0.10,
-    first_frac: float = 0.25,
-    last_frac: float = 0.25,
-    high_q: float = 0.90,
-    return_entropies: bool = False,
-) -> List[PromptEntropyResult]:
-    """
-    Compute prompt entropy trace + aggregated features for each prompt.
-    """
-    if device is None:
-        device = next(model.parameters()).device
 
-    results: List[PromptEntropyResult] = []
-    for p in prompts:
-        ent, T = compute_prompt_entropies(
-            model=model,
-            tokenizer=tokenizer,
-            prompt=p,
-            device=device,
-            max_length=max_length,
-        )
-        feats = aggregate_entropy_features(
-            ent,
-            trim_ratio=trim_ratio,
-            first_frac=first_frac,
-            last_frac=last_frac,
-            high_q=high_q,
-        )
-        results.append(
-            PromptEntropyResult(
-                prompt=p,
-                n_tokens=T,
-                entropies=ent if return_entropies else [],
-                features=feats,
-            )
-        )
-    return results
-
-
-# ============== interm. layer entropy (logit lens: https://arxiv.org/pdf/2303.08112, https://www.lesswrong.com/posts/AcKRB8wDpdaN6v6ru/interpreting-gpt-the-logit-lens)=========
+# ============== interm. layer entropy =========
 
 def get_model_components(model):
     """
@@ -489,8 +231,7 @@ def get_model_components(model):
             f"Available attributes: {attrs}"
         )
 
-    # lm_head: unwrap from top-level model
-    # For PeftModel, lm_head lives on the base model
+    # lm_head: unwrap from top-level model (For PeftModel, lm_head lives on the base model)
     lm_head = None
     for candidate in [model, getattr(model, "model", None)]:
         if candidate is not None and hasattr(candidate, "lm_head"):
@@ -587,7 +328,7 @@ def compute_intermediate_layer_entropies(
 
 
 def aggregate_layer_entropy_surface(
-    H: np.ndarray,              # [n_layers, T-1]
+    H: np.ndarray,           
     layers_to_probe: List[int],
 ) -> Dict[str, float]:
     """
