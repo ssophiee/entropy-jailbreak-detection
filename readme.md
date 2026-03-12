@@ -2,7 +2,7 @@
 
 ## Abstract
 
-Jailbreak attacks reveal a persistent weakness in aligned large language models (LLMs): carefully crafted prompts can elicit policy-violating responses despite safety training. We investigate how jailbreak-relevant signal is encoded in the internal dynamics of a base LLM by analyzing token-level predictive entropy trajectories across model layers. We find that static aggregate statistics of prompt-level entropy (e.g., mean, variance) carry little discriminative signal, whereas features capturing how entropy evolves across token positions, such as monotonic trend scores, are substantially more informative. Furthermore, this signal is not uniform across model depth: intermediate layers exhibit stronger and more consistent distributional differences between jailbreak and benign inputs than the final layer, suggesting that jailbreak-relevant structure is encoded in mid-network representations. Together, these findings characterize which entropy-derived features reflect harmful intent and where in the network that signal is most pronounced.
+Jailbreak attacks reveal a persistent weakness in aligned Large Language Models: carefully crafted prompts can elicit policy-violating responses despite safety training. While most defenses operate at the prompt or output level, it remains unclear how harmful intent is encoded within the model’s internal representations. We investigate this question by analyzing token-level predictive entropy trajectories across layers of a frozen LLM using the logit lens. We find that static aggregate statistics of prompt-level entropy (e.g., mean, variance) carry little discriminative signal, whereas features capturing how entropy evolves across token positions, such as monotonic rank-based trend scores, are substantially more informative. Importantly, this signal is not uniform across model depth: it consistently peaks at intermediate layers and degrades at the final layer, indicating that jailbreak-relevant structure emerges in mid-network semantic representations rather than at the output head. Across multiple models (Llama, Qwen, Gemma) and adversarial benchmarks, these entropy dynamics provide architecture-consistent separation without additional training. Together, our findings show that jailbreak behavior is reflected in structured intermediate uncertainty dynamics, clarifying both which entropy-derived features encode harmful intent and where in the network that signal is most pronounced.
 
 ---
 
@@ -11,18 +11,17 @@ Jailbreak attacks reveal a persistent weakness in aligned large language models 
 ```
 .
 ├── approaches/
-│   └── intermediate_layer/
-│       └── compute_metrics_intermediate_layer.py
+│   ├── intermediate_layer/
+│   │   └── compute_metrics_intermediate_layer.py
+│   └── prompt_entropy/
+│       └── prompt_entropy.py
 │
 ├── src/
 │   ├── constants.py              # Configuration
 │   └── data_utils.py             # Data loading
 │
-├── scripts/
-│   └── run_all_datasets.sh       # Full evaluation sweep
-│
-├── logs/intermediate_layer/      # Per-model run logs
-└── results/intermediate_entropy/ # AUROC tables and raw results
+├── requirements.txt
+└── .env.example
 ```
 
 ---
