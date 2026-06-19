@@ -13,3 +13,5 @@ __pycache__/*
 !/logs/intermediate_layer/**
 *.log
 !/logs/intermediate_layer/**/*.log
+
+.claude/
