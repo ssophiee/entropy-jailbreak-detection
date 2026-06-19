@@ -118,4 +118,4 @@ For questions or issues, feel free to open an issue or contact [Shireen Kudukkil
 
 ## ⭐ Acknowledgments
 
-MR was supported by the Amazon Research Award 2024. SN was supported by the DAAD programme Konrad Zuse Schools of Excellence in Artificial Intelligence, sponsored by the Federal Ministry of Research, Technology and Space. SKM has received funding from the European Union's Horizon 2020 Research and Innovation program under Grant Agreement No. 964505 (E-pi).
+MR was supported by the Amazon Research Award 2024. SN was supported by the DAAD programme Konrad Zuse, Schools of Excellence in Artificial Intelligence, sponsored by the Federal Ministry of Research, Technology and Space, as well as Munich Center for Machine Learning (MCML). SKM has received funding from the European Union’s Horizon 2020 Research and Innovation program under Grant Agreement No. 964505 (E-pi). 
