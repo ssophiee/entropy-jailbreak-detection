@@ -96,7 +96,7 @@ When `--run_all` is used, a sorted summary table is printed to stdout showing th
 
 Extended results, layer-wise AUROC tables, additional ablations, and an analysis of JailbreakBench-benign distributional overlap are available in [`supplementary_material.pdf`](supplementary_material.pdf), included in this repository.
 
-
+<!--
 ## 📢 Citation
 
 If you use this code, or found it inspiring, please cite our paper:
@@ -109,7 +109,7 @@ If you use this code, or found it inspiring, please cite our paper:
   year={2026}
 }
 ```
-
+-->
 
 ## 📬 Contact
 
